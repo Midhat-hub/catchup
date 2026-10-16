@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     postgres_user: str = Field(default="catchup", description="PostgreSQL database user")
     postgres_password: str = Field(default="catchup_dev_secret", description="PostgreSQL database password")
     postgres_host: str = Field(default="localhost", description="PostgreSQL database host")
-    postgres_port: int = Field(default=5432, description="PostgreSQL database port")
+    postgres_port: int = Field(default=5433, description="PostgreSQL database port")
     postgres_db: str = Field(default="catchup", description="PostgreSQL database name")
     database_url: Optional[str] = Field(default=None, description="Full database URL override")
 

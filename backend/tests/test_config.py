@@ -5,12 +5,13 @@ from pydantic import ValidationError
 from backend.app.config import Settings
 
 
-def test_default_settings():
+def test_default_settings(monkeypatch):
     """Verify default settings values when no env overrides are present."""
+    monkeypatch.delenv("POSTGRES_PORT", raising=False)
     settings = Settings(_env_file=None)
     assert settings.app_name == "Catchup"
     assert settings.app_env in {"development", "test", "production"}
-    assert settings.postgres_port == 5432
+    assert settings.postgres_port == 5433
     assert "postgresql://" in settings.get_database_url()
 
 
