@@ -1,0 +1,49 @@
+# Python virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# Environment files and secrets
+.env
+*.env.local
+*.local
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Packaging and builds
+build/
+dist/
+*.egg-info/
+eggs/
+.eggs/
+
+# Node / Frontend
+node_modules/
+.npm/
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+postgres_data/
+
+# Explicitly track required markdown and examples
+!.env.example
+!PROJECT2.md
