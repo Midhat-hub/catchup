@@ -15,9 +15,14 @@ CREATE TABLE IF NOT EXISTS repos (
     name VARCHAR(255) NOT NULL UNIQUE,
     status VARCHAR(50) NOT NULL DEFAULT 'mapping' CHECK (status IN ('mapping', 'ready', 'failed')),
     last_explained_commit VARCHAR(64),
+    mapped_commit_sha VARCHAR(64),
+    mapping_error TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE repos ADD COLUMN IF NOT EXISTS mapped_commit_sha VARCHAR(64);
+ALTER TABLE repos ADD COLUMN IF NOT EXISTS mapping_error TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_repos_status ON repos(status);
 CREATE INDEX IF NOT EXISTS idx_repos_name ON repos(name);

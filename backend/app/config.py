@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     # Future integration settings (placeholders per PROJECT2.md)
     github_token: Optional[str] = Field(default=None, description="GitHub personal access token (read-only)")
     gemini_api_key: Optional[str] = Field(default=None, description="Gemini Flash API key")
+    gemini_model: str = Field(default="gemini-3.5-flash-lite", description="Gemini Flash or Flash-Lite model id")
     notification_email: Optional[str] = Field(default=None, description="Notification recipient email")
 
     model_config = SettingsConfigDict(

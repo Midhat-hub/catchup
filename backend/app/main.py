@@ -6,10 +6,29 @@ Provides application lifecycle management and robust health checks.
 from contextlib import asynccontextmanager
 import logging
 from typing import Any, Dict
-from fastapi import FastAPI, Response, status
+from fastapi import FastAPI, HTTPException, Response, status
 
 from backend.app.config import get_settings
 from backend.app.db import check_db_health, close_pool
+from backend.app.explain.gemini import GeminiConfigurationError, GeminiError
+from backend.app.explain.models import ExplainPushRequest
+from backend.app.explain.persistence import MappingRevisionMismatchError, RepositoryNotMappedError
+from backend.app.explain.pipeline import ChangeAnalysisError, explain_push
+from backend.app.github.exceptions import (
+    GitHubError,
+    PrivateRepoError,
+    RateLimitExceededError,
+    RepoNotFoundError,
+)
+from backend.app.index.embeddings import EmbeddingError
+from backend.app.index.mapping import (
+    RepositoryIdentifierError,
+    UnsupportedRepositoryError,
+    get_repository_mapping_status,
+    map_repository,
+)
+from backend.app.index.mapping_models import MappingStatistics, MappingStatus, RepositoryMappingRequest
+from backend.app.parsing.javascript import JavaScriptParseError
 
 # Configure root logger
 settings = get_settings()
@@ -95,3 +114,69 @@ async def health(response: Response) -> Dict[str, Any]:
             "error": db_status.get("error"),
         },
     }
+
+
+@app.post("/api/repos/map", response_model=MappingStatistics, tags=["Repositories"])
+def map_repository_endpoint(request: RepositoryMappingRequest) -> MappingStatistics:
+    """Map the current default-branch revision of a public JavaScript repository."""
+    try:
+        return map_repository(request.repository)
+    except RepositoryIdentifierError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except PrivateRepoError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except RepoNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RateLimitExceededError as exc:
+        headers = {"Retry-After": str(exc.retry_after)} if exc.retry_after is not None else None
+        raise HTTPException(status_code=429, detail=str(exc), headers=headers) from exc
+    except (UnsupportedRepositoryError, JavaScriptParseError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except EmbeddingError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except GitHubError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get(
+    "/api/repos/{owner}/{repo}/mapping",
+    response_model=MappingStatus,
+    tags=["Repositories"],
+)
+def repository_mapping_status(owner: str, repo: str) -> MappingStatus:
+    """Return stored mapping status and record counts without contacting GitHub."""
+    try:
+        mapping_status = get_repository_mapping_status(f"{owner}/{repo}")
+    except RepositoryIdentifierError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if mapping_status is None:
+        raise HTTPException(status_code=404, detail="Repository mapping was not found.")
+    return mapping_status
+
+
+@app.post("/api/pushes/explain", tags=["Pushes"], response_model=None)
+def explain_push_endpoint(request: ExplainPushRequest, response: Response) -> Any:
+    """Explain and persist one push; return 204 for comment/whitespace-only changes."""
+    try:
+        explanation = explain_push(
+            request.repo,
+            request.before_commit,
+            request.after_commit,
+            request.use_extra_evidence,
+        )
+        if explanation is None:
+            response.status_code = status.HTTP_204_NO_CONTENT
+            return None
+        return explanation
+    except RepositoryIdentifierError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except (RepositoryNotMappedError, MappingRevisionMismatchError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except GitHubError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except ChangeAnalysisError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except GeminiConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except GeminiError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc

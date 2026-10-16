@@ -15,6 +15,7 @@ class RepoMetadata(BaseModel):
     owner: str = Field(..., description="Owner username or organization name")
     default_branch: str = Field(default="main", description="Default branch name")
     is_private: bool = Field(..., description="True if repository is private")
+    language: Optional[str] = Field(default=None, description="GitHub's detected primary language")
     description: Optional[str] = Field(default=None, description="Repository description")
     html_url: Optional[str] = Field(default=None, description="Public GitHub URL")
 

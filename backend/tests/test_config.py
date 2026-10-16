@@ -12,6 +12,7 @@ def test_default_settings(monkeypatch):
     assert settings.app_name == "Catchup"
     assert settings.app_env in {"development", "test", "production"}
     assert settings.postgres_port == 5433
+    assert settings.gemini_model == "gemini-3.5-flash-lite"
     assert "postgresql://" in settings.get_database_url()
 
 

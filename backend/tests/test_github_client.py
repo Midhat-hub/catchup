@@ -139,6 +139,28 @@ def test_list_files_recursive_tree():
         assert files[1].size == 1200
 
 
+def test_get_blob_content_decodes_exact_revision_blob():
+    """Verify blob retrieval uses the tree-provided SHA and decodes source bytes."""
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/repos/owner/repo/git/blobs/blob-sha"
+        return httpx.Response(200, json={"encoding": "base64", "content": "Y29uc3QgYSA9IDE7"})
+
+    with GitHubClient(transport=httpx.MockTransport(mock_handler), cache=ETagCache()) as client:
+        assert client.get_blob_content("owner", "repo", "blob-sha") == b"const a = 1;"
+
+
+def test_truncated_tree_is_rejected():
+    """A partial recursive tree must not be used for a supposedly complete map."""
+    from backend.app.github.exceptions import GitHubError
+
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"truncated": True, "tree": []})
+
+    with GitHubClient(transport=httpx.MockTransport(mock_handler), cache=ETagCache()) as client:
+        with pytest.raises(GitHubError, match="truncated"):
+            client.list_files("owner", "repo", tree_sha="a" * 40)
+
+
 def test_get_latest_commits():
     """Verify retrieval and parsing of recent commits."""
     def mock_handler(request: httpx.Request) -> httpx.Response:

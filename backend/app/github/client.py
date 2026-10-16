@@ -11,6 +11,8 @@ Features:
 
 import logging
 import time
+import base64
+import binascii
 from typing import Any, Dict, List, Optional
 import httpx
 
@@ -191,6 +193,7 @@ class GitHubClient:
             owner=data.get("owner", {}).get("login", owner),
             default_branch=data.get("default_branch", "main"),
             is_private=is_private,
+            language=data.get("language"),
             description=data.get("description"),
             html_url=data.get("html_url"),
         )
@@ -212,6 +215,11 @@ class GitHubClient:
         endpoint = f"repos/{owner}/{repo}/git/trees/{tree_sha}"
         data = self._request("GET", endpoint, params={"recursive": "1"})
 
+        if data.get("truncated"):
+            raise GitHubError(
+                "GitHub returned a truncated repository tree. Mapping stopped to avoid marking an incomplete repository ready."
+            )
+
         tree_items = data.get("tree", [])
         files: List[RepoFileItem] = []
         for item in tree_items:
@@ -225,6 +233,17 @@ class GitHubClient:
                 )
             )
         return files
+
+    def get_blob_content(self, owner: str, repo: str, blob_sha: str) -> bytes:
+        """Fetch and decode a Git blob by the SHA returned in a repository tree."""
+        data = self._request("GET", f"repos/{owner}/{repo}/git/blobs/{blob_sha}")
+        if data.get("encoding") != "base64" or not isinstance(data.get("content"), str):
+            raise GitHubError(f"GitHub returned an unsupported encoding for blob {blob_sha}.")
+        try:
+            encoded_content = "".join(data["content"].split())
+            return base64.b64decode(encoded_content, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise GitHubError(f"GitHub returned invalid base64 for blob {blob_sha}.") from exc
 
     def get_latest_commits(
         self,

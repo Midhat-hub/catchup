@@ -1,109 +1,103 @@
-# Catchup: Explain Every Push
+# Catchup
 
-Catchup is a local developer tool that explains every push to the default branch of a public GitHub repository in beginner-friendly, plain language. It maps the codebase, pinpoints affected callers and tests, generates structured summaries using LLMs, and flags potential risks.
+Catchup is a local tool for mapping public JavaScript GitHub repositories and explaining meaningful changes between commits. It stores parsed code chunks, local embeddings, likely caller relationships, static test links, push explanations, evidence, and generation metrics. Polling, email delivery, and the React UI are later project steps and are not implemented yet.
 
----
+## Requirements
 
-## Prerequisites
+- Python 3.11 or newer (the project venv currently uses Python 3.12).
+- Docker Desktop with Docker Compose, for PostgreSQL 16 and pgvector.
+- Network access on the first mapping run to download the local embedding model and to read public repositories from GitHub.
 
-- **Python**: 3.12 (virtual environment at `.venv`)
-- **Docker Desktop**: Running with Docker Compose support
+## Setup
 
----
+From the repository root in PowerShell:
 
-## Step 1 Setup & Verification
-
-### 1. Activate the Virtual Environment
-
-**Windows PowerShell:**
 ```powershell
 .\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 ```
 
-**macOS / Linux:**
-```bash
-source .venv/bin/activate
-```
+Create `.env` from `.env.example` if needed, then review the PostgreSQL settings. The defaults use `localhost:5433`; `DATABASE_URL` can override the individual `POSTGRES_*` settings. A GitHub token is optional for public repositories, but a read-only token in `GITHUB_TOKEN` provides a higher API rate limit. Keep `.env` private.
 
----
+Start PostgreSQL with pgvector and initialize or apply the schema:
 
-### 2. Install Dependencies
-
-Install the pinned backend dependencies into the virtual environment:
-```powershell
-pip install -r requirements.txt
-```
-
----
-
-### 3. Configure Environment Variables
-
-Copy the example environment file:
-```powershell
-Copy-Item .env.example .env
-```
-
-Review `.env` and adjust the PostgreSQL connection details if needed. Safe defaults for local development are provided.
-
----
-
-### 4. Start PostgreSQL with Docker Compose
-
-Launch the PostgreSQL 16 container with `pgvector` enabled:
 ```powershell
 docker compose up -d
-```
-
-Verify that the container is healthy:
-```powershell
-docker compose ps
-```
-
----
-
-### 5. Initialize the Database Schema
-
-Run the database initialization script to create all 7 core tables and enable the `vector` extension:
-```powershell
 python -m backend.app.db
 ```
 
-This verifies connectivity and creates:
-- `repos`
-- `chunks`
-- `references`
-- `test_links`
-- `pushes`
-- `jobs`
-- `explanations`
+The schema initialization creates the seven existing tables and applies the additive `repos.mapped_commit_sha` and `repos.mapping_error` columns used by Step 3. Check the service with `docker compose ps` and `http://localhost:8000/health` after starting the API.
 
----
+## Run The API
 
-### 6. Run the FastAPI Application
-
-Start the local API development server with hot-reload:
 ```powershell
-uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-- **API Documentation**: Open [http://localhost:8000/docs](http://localhost:8000/docs) in your browser.
-- **Health Check**: Open [http://localhost:8000/health](http://localhost:8000/health) to inspect app and database readiness.
+Interactive API documentation is available at [http://localhost:8000/docs](http://localhost:8000/docs).
 
----
+Map the default branch of a public JavaScript repository:
 
-### 7. Run the Test Suite
-
-**Run all unit tests (isolated, no live database required):**
 ```powershell
-pytest -m "not integration"
+Invoke-RestMethod -Method Post `
+	-Uri http://localhost:8000/api/repos/map `
+	-ContentType "application/json" `
+	-Body '{"repository":"Midhat-hub/bookstore-api"}'
 ```
 
-**Run integration tests against the live PostgreSQL database:**
+The response includes the pinned commit SHA, files examined and parsed, chunk/embedding/reference/test-link counts, duration, skipped-file details, and whether this revision was already mapped. Private repositories are refused. Invalid identifiers, unsupported primary languages, missing repositories, GitHub rate limits, parse errors, and model failures return distinct HTTP errors. A failed map is recorded as `failed`; previous chunks remain in place unless a replacement mapping succeeds atomically.
+
+Read the persisted status and counts without calling GitHub:
+
 ```powershell
-pytest -m integration
+Invoke-RestMethod -Uri http://localhost:8000/api/repos/Midhat-hub/bookstore-api/mapping
 ```
 
-**Run all tests together:**
+Explain a push between two commits (the repository must be mapped at the `before_commit` SHA):
+
 ```powershell
-pytest -v
+Invoke-RestMethod -Method Post `
+	-Uri http://localhost:8000/api/pushes/explain `
+	-ContentType "application/json" `
+	-Body '{"repo":"Midhat-hub/bookstore-api","before_commit":"<before-sha>","after_commit":"<after-sha>","use_extra_evidence":true}'
+```
+
+Set `use_extra_evidence` to `false` to omit callers, test links, similar code, and rule-based flags. Comment/whitespace-only JavaScript changes return HTTP 204 without calling Gemini or creating an explanation. A successful result is saved in the existing `pushes` and `explanations` tables with its evidence, token counts, duration, model, and extra-evidence setting. Completed push explanations are returned from storage on repeat requests.
+
+Gemini uses `GEMINI_API_KEY` from `.env` and defaults to `gemini-3.5-flash-lite`; `GEMINI_MODEL` can override the model. The key is sent in an HTTP header and is never logged. Calls request JSON structured output, retry transient errors with bounded exponential backoff, and cache responses in memory. Risk flags are computed locally, and generated file/function references are filtered against mapped repository evidence.
+
+## Parsing And Embeddings
+
+Tree-sitter with the JavaScript grammar extracts function declarations, named function expressions, identifier-assigned arrows, async functions, class methods, Express-style route callbacks, ES module imports, CommonJS `require` bindings, identifiable calls, and file-level code outside recognized functions. Nested functions get their own chunks while retaining their original enclosing function chunk. Each stored chunk keeps its repository-relative path, source text, kind, and one-based start/end lines.
+
+The local model is `BAAI/bge-small-en-v1.5` through FastEmbed. A real local inference produced a non-zero vector of **384 dimensions**, matching `vector(384)` in PostgreSQL. The first mapping downloads the model from Hugging Face; the current model cache is about **65 MiB**. It runs on CPU; allow roughly **0.5-1 GiB of RAM** while mapping. Tests inject a fake model and do not initialize, download, or contact the model service.
+
+Files with `.js`, `.jsx`, `.cjs`, and `.mjs` extensions are eligible. `node_modules`, generated/build directories, minified files, non-UTF-8/binary files, and files larger than 1 MB are skipped. A truncated GitHub file tree or a JavaScript parse failure fails the mapping instead of marking an incomplete result ready.
+
+## Static Analysis Limits
+
+- Call edges are resolved only for unique same-file targets or targets connected through supported relative imports. Package aliases, barrel re-exports, dynamic imports, computed properties, and many CommonJS export patterns are not resolved.
+- Callback and dynamic calls can be missed. In cases where a target remains ambiguous, the mapper skips the edge; name-based static analysis can still associate a call with the wrong same-named symbol in some code shapes.
+- Test links use statically resolved calls and imports. They indicate likely references, not actual runtime test coverage or assertions.
+- The parser targets JavaScript/JSX, not TypeScript/TSX or framework-specific syntax outside the JavaScript grammar. Unsupported syntax causes a failed mapping with a file and line error.
+- Mapping is a full snapshot at one commit, not incremental. Re-mapping the same ready SHA is a no-op; a new SHA replaces chunks and relationships in one database transaction.
+- Push comparison analyzes changed files from both commit trees. Rename metadata from GitHub's compare API is not preserved by the current Step 1 `PushFile` shape, and generated output cannot infer runtime behavior.
+- Token counts used to select evidence are estimated at roughly four characters per token; Gemini's returned usage metadata is recorded for actual provider calls. Large pushes are split by file and combined afterward.
+
+## Tests
+
+Run the full suite with the project virtual environment:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -v
+```
+
+Unit tests use mocked GitHub and database boundaries and do not require credentials or a model download. Tests marked `integration` require the configured PostgreSQL/pgvector service; tests also marked `github` call the public GitHub API.
+
+The live Gemini check is opt-in and makes one request:
+
+```powershell
+$env:RUN_LIVE_GEMINI_TEST = "1"
+.\.venv\Scripts\python.exe -m pytest -v backend/tests/test_gemini_live.py
+Remove-Item Env:RUN_LIVE_GEMINI_TEST
 ```
