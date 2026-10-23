@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import "./landing.css";
 import {
   explainPush,
   getMappingStatus,
@@ -383,7 +384,7 @@ function ExplanationDetail({ item, repository }) {
   );
 }
 
-export default function App() {
+function Workspace() {
   const [repositories, setRepositories] = useState(EMPTY);
   const [selectedRepository, setSelectedRepository] = useState("");
   const [mapping, setMapping] = useState(null);
@@ -423,7 +424,17 @@ export default function App() {
       .then((rows) => {
         if (!alive) return;
         setRepositories(rows);
-        if (rows.length) setSelectedRepository(rows[0].repository);
+        const requestedRepository = new URLSearchParams(
+          window.location.search,
+        ).get("repo");
+        if (
+          requestedRepository &&
+          rows.some((row) => row.repository === requestedRepository)
+        ) {
+          setSelectedRepository(requestedRepository);
+        } else if (rows.length) {
+          setSelectedRepository(rows[0].repository);
+        }
       })
       .catch((requestError) => alive && setError(requestError.message))
       .finally(() => alive && setLoading(false));
@@ -885,4 +896,397 @@ export default function App() {
       </main>
     </div>
   );
+}
+
+function LandingPage() {
+  const [repositories, setRepositories] = useState(EMPTY);
+  const [reposLoading, setReposLoading] = useState(true);
+  const [reposUnavailable, setReposUnavailable] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    getRepositories()
+      .then((rows) => {
+        if (!alive) return;
+        setRepositories(rows);
+        setReposUnavailable(false);
+      })
+      .catch(() => {
+        if (alive) setReposUnavailable(true);
+      })
+      .finally(() => {
+        if (alive) setReposLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  function openRepository(repository) {
+    window.location.href = `/workspace?repo=${encodeURIComponent(repository)}`;
+  }
+
+  return (
+    <div className="landing-layout">
+      <aside className="landing-sidebar">
+        <a className="landing-sidebar-brand" href="/" aria-label="Catchup home">
+          <span className="landing-brand-mark">C</span>
+          <span>
+            <strong>catchup</strong>
+            <small>CODE, IN CONTEXT</small>
+          </span>
+        </a>
+        <div className="landing-sidebar-heading">
+          <span>Repositories</span>
+          <span className="landing-repo-count">{repositories.length}</span>
+        </div>
+        <nav
+          className="landing-repository-list"
+          aria-label="Existing repositories"
+        >
+          {repositories.map((item) => (
+            <button
+              key={item.repository}
+              type="button"
+              className="landing-repo-item"
+              onClick={() => openRepository(item.repository)}
+              title={`Open ${item.repository}`}
+            >
+              <span
+                className={`repo-dot dot-${item.status || "unknown"}`}
+                aria-hidden="true"
+              />
+              <span className="landing-repo-copy">
+                <strong>
+                  {item.repository.split("/")[1] || item.repository}
+                </strong>
+                <small>{item.repository.split("/")[0] || "Repository"}</small>
+              </span>
+              <span className="landing-repo-count-value">
+                {item.chunks_stored ?? 0}
+              </span>
+            </button>
+          ))}
+          {reposLoading && (
+            <p className="landing-repo-message">Loading repositories…</p>
+          )}
+          {!reposLoading && !repositories.length && !reposUnavailable && (
+            <p className="landing-repo-message">No repositories mapped yet.</p>
+          )}
+          {reposUnavailable && (
+            <p className="landing-repo-message">
+              Repositories are unavailable right now.
+            </p>
+          )}
+        </nav>
+        <a className="landing-sidebar-workspace" href="/workspace">
+          Open workspace <span aria-hidden="true">↗</span>
+        </a>
+        <div className="landing-sidebar-footer">
+          <span className="local-indicator" /> Your code, in context
+        </div>
+      </aside>
+
+      <div className="landing-main-column">
+        <div className="landing-page">
+          <header className="landing-nav">
+            <a className="landing-brand" href="/" aria-label="Catchup home">
+              <span className="landing-brand-mark">C</span>
+              <span>
+                <strong>catchup</strong>
+                <small>CODE, IN CONTEXT</small>
+              </span>
+            </a>
+            <nav className="landing-nav-links" aria-label="Main navigation">
+              <a href="#how-it-works">How it works</a>
+              <a href="#features">Features</a>
+            </nav>
+            <a className="landing-nav-cta" href="/workspace">
+              Open workspace <span aria-hidden="true">↗</span>
+            </a>
+          </header>
+
+          <main>
+            <section className="landing-hero">
+              <div className="landing-hero-copy">
+                <div className="landing-kicker">
+                  <span className="landing-live-dot" /> CODEBASE CONTEXT, ON
+                  DEMAND
+                </div>
+                <h1>
+                  Understand every push.
+                  <br />
+                  <em>Not just the diff.</em>
+                </h1>
+                <p className="landing-hero-description">
+                  Catchup turns code changes into clear explanations—showing
+                  what changed, why it matters, and which parts of your codebase
+                  may be affected.
+                </p>
+                <div className="landing-hero-actions">
+                  <a
+                    className="landing-button landing-button-primary"
+                    href="/workspace"
+                  >
+                    Explore the workspace <span aria-hidden="true">→</span>
+                  </a>
+                  <a className="landing-text-link" href="#how-it-works">
+                    See how it works <span aria-hidden="true">↓</span>
+                  </a>
+                </div>
+                <div className="landing-proof">
+                  <span className="landing-proof-icon">✓</span>
+                  <span>Plain-language summaries</span>
+                  <span className="landing-proof-separator">·</span>
+                  <span>Code-backed evidence</span>
+                </div>
+              </div>
+
+              <div
+                className="landing-visual"
+                aria-label="Illustration of a code push explanation"
+              >
+                <div className="landing-orbit landing-orbit-one" />
+                <div className="landing-orbit landing-orbit-two" />
+                <div className="landing-code-card">
+                  <div className="landing-card-topbar">
+                    <div className="landing-window-dots">
+                      <i />
+                      <i />
+                      <i />
+                    </div>
+                    <span>push-explanation.md</span>
+                    <span className="landing-card-tag">SAVED</span>
+                  </div>
+                  <div className="landing-code-body">
+                    <div className="landing-code-line">
+                      <span>01</span>
+                      <code className="code-muted">
+                        commit <b>8f3a2c1</b>
+                      </code>
+                    </div>
+                    <div className="landing-code-line">
+                      <span>02</span>
+                      <code>
+                        update <b className="code-green">checkout flow</b>
+                      </code>
+                    </div>
+                    <div className="landing-code-divider" />
+                    <p className="landing-mini-label">PLAIN-LANGUAGE SUMMARY</p>
+                    <h3>Checkout now validates the cart before payment.</h3>
+                    <p className="landing-mini-copy">
+                      The new guard prevents empty carts from reaching the
+                      payment step.
+                    </p>
+                    <div className="landing-impact-heading">
+                      <span>↳</span> WHAT THIS MAY AFFECT
+                    </div>
+                    <div className="landing-impact-row">
+                      <span className="landing-file-icon">ƒ</span>
+                      <span>
+                        <b>createPayment()</b>
+                        <small>src/payments/checkout.js</small>
+                      </span>
+                      <span className="landing-arrow">↗</span>
+                    </div>
+                    <div className="landing-impact-row">
+                      <span className="landing-file-icon landing-file-test">
+                        ✓
+                      </span>
+                      <span>
+                        <b>checkout tests</b>
+                        <small>tests/checkout.test.js</small>
+                      </span>
+                      <span className="landing-arrow">↗</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="landing-floating-note">
+                  <span>✳</span>
+                  <div>
+                    <b>Context included</b>
+                    <small>Callers · tests · related code</small>
+                  </div>
+                </div>
+                <div className="landing-visual-caption">
+                  FROM COMMIT TO CONTEXT <span>01 / 03</span>
+                </div>
+              </div>
+              <div className="landing-hero-bottom">
+                <span>BUILT FOR DEVELOPERS</span>
+                <span>LESS GUESSWORK. MORE CONTEXT.</span>
+              </div>
+            </section>
+
+            <section className="landing-intro" id="how-it-works">
+              <div className="landing-section-label">
+                <span>01</span> THE IDEA
+              </div>
+              <div className="landing-intro-copy">
+                <h2>
+                  A diff tells you <em>what moved.</em>
+                  <br />
+                  Catchup helps explain what it means.
+                </h2>
+                <p>
+                  When you join a project or return to a codebase, reading every
+                  commit takes time. Catchup connects the change to surrounding
+                  code so you can get oriented faster.
+                </p>
+              </div>
+            </section>
+
+            <section className="landing-steps-section">
+              <div className="landing-section-label">
+                <span>02</span> HOW IT WORKS
+              </div>
+              <div className="landing-steps-grid">
+                <article className="landing-step-card">
+                  <span className="landing-step-number">01 / MAP</span>
+                  <div className="landing-step-symbol">⌘</div>
+                  <h3>Map your repository</h3>
+                  <p>
+                    Add a public repository. Catchup indexes code structure and
+                    stores useful relationships between files.
+                  </p>
+                </article>
+                <article className="landing-step-card landing-step-highlight">
+                  <span className="landing-step-number">02 / EXPLAIN</span>
+                  <div className="landing-step-symbol">↗</div>
+                  <h3>Explain a push</h3>
+                  <p>
+                    Compare two commits to generate a readable summary of the
+                    changes and their likely impact.
+                  </p>
+                </article>
+                <article className="landing-step-card">
+                  <span className="landing-step-number">03 / EXPLORE</span>
+                  <div className="landing-step-symbol">◎</div>
+                  <h3>Follow the evidence</h3>
+                  <p>
+                    Inspect related code, callers, tests, similar snippets, and
+                    risk signals in one place.
+                  </p>
+                </article>
+              </div>
+            </section>
+
+            <section className="landing-features" id="features">
+              <div className="landing-section-label">
+                <span>03</span> WHY CATCHUP
+              </div>
+              <div className="landing-feature-layout">
+                <div className="landing-feature-heading">
+                  <h2>
+                    Context that travels
+                    <br />
+                    <em>with the change.</em>
+                  </h2>
+                  <p>
+                    Less time tracing dependencies from scratch. More time
+                    understanding the work in front of you.
+                  </p>
+                  <a className="landing-feature-link" href="/workspace">
+                    Go to your workspace <span>→</span>
+                  </a>
+                </div>
+                <div className="landing-feature-list">
+                  <article>
+                    <span className="landing-feature-index">A</span>
+                    <div>
+                      <h3>Human-readable summaries</h3>
+                      <p>
+                        Get a concise overview before diving into implementation
+                        details.
+                      </p>
+                    </div>
+                  </article>
+                  <article>
+                    <span className="landing-feature-index">B</span>
+                    <div>
+                      <h3>Impact clues</h3>
+                      <p>
+                        See connected functions and code paths that may need a
+                        closer look.
+                      </p>
+                    </div>
+                  </article>
+                  <article>
+                    <span className="landing-feature-index">C</span>
+                    <div>
+                      <h3>Push notifications by email</h3>
+                      <p>
+                        Get an email for every push, with a clear summary of
+                        what changed and why it matters.
+                      </p>
+                    </div>
+                  </article>
+                  <article>
+                    <span className="landing-feature-index">D</span>
+                    <div>
+                      <h3>Evidence you can inspect</h3>
+                      <p>
+                        Open referenced files and review snippets instead of
+                        taking the summary on faith.
+                      </p>
+                    </div>
+                  </article>
+                </div>
+              </div>
+            </section>
+
+            <section className="landing-email-callout">
+              <div className="landing-email-icon">✉</div>
+              <div>
+                <p className="landing-email-eyebrow">STAY IN THE LOOP</p>
+                <h2>Every push. Straight to your inbox.</h2>
+                <p>
+                  Receive email updates for repository pushes, so you can keep
+                  up with changes without constantly checking GitHub.
+                </p>
+              </div>
+              <a href="/workspace" className="landing-email-link">
+                Explore Catchup <span>→</span>
+              </a>
+            </section>
+
+            <section className="landing-final-cta">
+              <div className="landing-final-stamp">C</div>
+              <p className="landing-kicker">
+                YOUR NEXT CODEBASE, LESS MYSTERIOUS
+              </p>
+              <h2>
+                Get the context.
+                <br />
+                <em>Then get to work.</em>
+              </h2>
+              <a
+                className="landing-button landing-button-light"
+                href="/workspace"
+              >
+                Open Catchup workspace <span aria-hidden="true">→</span>
+              </a>
+            </section>
+          </main>
+
+          <footer className="landing-footer">
+            <a className="landing-brand" href="/">
+              <span className="landing-brand-mark">C</span>
+              <span>
+                <strong>catchup</strong>
+                <small>CODE, IN CONTEXT</small>
+              </span>
+            </a>
+            <span>Understand the change. Follow the context.</span>
+            <a href="/workspace">Workspace ↗</a>
+          </footer>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const path = window.location.pathname.replace(/\/+$/, "") || "/";
+  return path === "/workspace" ? <Workspace /> : <LandingPage />;
 }
