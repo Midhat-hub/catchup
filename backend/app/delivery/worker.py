@@ -92,8 +92,8 @@ async def worker_loop(idle_seconds: float | None = None) -> None:
             processed = await asyncio.to_thread(process_next_job)
         except asyncio.CancelledError:
             raise
-        except Exception as exc:
-            logger.warning("Job worker cycle failed error=%s", type(exc).__name__)
+        except Exception:
+            logger.exception("Job worker cycle failed")
             processed = False
         if not processed:
             await asyncio.sleep(idle_delay)
