@@ -32,8 +32,19 @@ function repoPath(repository) {
   return repository.split("/").map(encodeURIComponent).join("/");
 }
 
-export function getRepositories() {
-  return request("/api/repos");
+export async function getRepositories() {
+  const data = await request("/api/repos");
+
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data?.repositories)) {
+    return data.repositories;
+  }
+
+  console.error("Unexpected /api/repos response:", data);
+  throw new Error("The repositories API returned an unexpected response.");
 }
 
 export function getMappingStatus(repository) {
