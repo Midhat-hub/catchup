@@ -43,8 +43,9 @@ def mark_mapping_failed(repository: str, error: str, repo_id: int | None = None)
         with conn.cursor() as cursor:
             if repo_id is not None:
                 cursor.execute(
-                    """UPDATE repos SET status = 'failed', mapping_error = %s,
-                       updated_at = CURRENT_TIMESTAMP WHERE id = %s""",
+                   """UPDATE repos SET status = 'ready', mapped_commit_sha = %s, 
+    last_explained_commit = COALESCE(last_explained_commit, %s),
+    mapping_error = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = %s""",
                     (safe_error, repo_id),
                 )
             else:
@@ -110,9 +111,10 @@ def persist_mapping(
                         (test_file, chunk_ids[chunk_id]),
                     )
                 cursor.execute(
-                    """UPDATE repos SET status = 'ready', mapped_commit_sha = %s,
-                       mapping_error = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = %s""",
-                    (commit_sha, repo_id),
+                          """UPDATE repos SET status = 'ready', mapped_commit_sha = %s,
+                              last_explained_commit = COALESCE(last_explained_commit, %s),
+                              mapping_error = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = %s""",
+                          (commit_sha, commit_sha, repo_id),
                 )
                 return len(chunk_ids), len(references), len(test_links)
 
@@ -135,3 +137,21 @@ def get_mapping_status(repository: str) -> dict[str, Any] | None:
                 (repository,),
             )
             return cursor.fetchone()
+
+
+def list_repository_mappings() -> list[dict[str, Any]]:
+    """Return repositories and mapping counts for the local repository sidebar."""
+    with get_db_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(
+                """SELECT r.name AS repository, r.status, r.mapped_commit_sha, r.mapping_error,
+                    r.created_at::text AS created_at, r.updated_at::text AS updated_at,
+                    (SELECT COUNT(DISTINCT file) FROM chunks WHERE repo_id = r.id) AS files_parsed,
+                    (SELECT COUNT(*) FROM chunks WHERE repo_id = r.id) AS chunks_stored,
+                    (SELECT COUNT(*) FROM \"references\" ref
+                        JOIN chunks c ON c.id = ref.caller_chunk_id WHERE c.repo_id = r.id) AS references_stored,
+                    (SELECT COUNT(*) FROM test_links tl
+                        JOIN chunks c ON c.id = tl.chunk_id WHERE c.repo_id = r.id) AS test_links_stored
+                   FROM repos r ORDER BY r.updated_at DESC, r.id DESC"""
+            )
+            return list(cursor.fetchall())

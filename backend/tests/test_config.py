@@ -13,6 +13,10 @@ def test_default_settings(monkeypatch):
     assert settings.app_env in {"development", "test", "production"}
     assert settings.postgres_port == 5433
     assert settings.gemini_model == "gemini-3.5-flash-lite"
+    assert settings.github_poll_interval_seconds == 180
+    assert settings.job_worker_idle_seconds == 2.0
+    assert settings.job_lease_seconds == 300
+    assert settings.job_max_attempts == 4
     assert "postgresql://" in settings.get_database_url()
 
 

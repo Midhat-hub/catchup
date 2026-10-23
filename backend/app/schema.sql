@@ -100,6 +100,9 @@ CREATE TABLE IF NOT EXISTS jobs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_jobs_push_commit
+    ON jobs ((payload->>'repo_id'), (payload->>'after_commit'))
+    WHERE payload->>'type' = 'explain_push';
 
 -- 8. Explanations table
 -- Stores generated push explanations, evidence used, and execution metrics.

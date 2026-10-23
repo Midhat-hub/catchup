@@ -9,6 +9,7 @@ from psycopg.types.json import Jsonb
 
 from backend.app.db import get_db_connection
 from backend.app.models import Evidence, Explanation
+from backend.app.explain.models import PushHistoryItem
 
 
 class RepositoryNotMappedError(RuntimeError):
@@ -93,22 +94,33 @@ def save_explanation(
     evidence: Evidence,
     use_extra_evidence: bool,
 ) -> None:
-    """Persist the structured result and mark the push/repository in one transaction."""
+    """Persist the explanation without advancing the tracking cursor."""
     with get_db_connection() as conn:
         with conn.transaction():
             with conn.cursor() as cursor:
                 cursor.execute(
-                    """INSERT INTO explanations
-                       (push_id, content, evidence_used, tokens_in, tokens_out, seconds, model, extra_evidence)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                       ON CONFLICT (push_id) DO UPDATE SET
-                         content = EXCLUDED.content,
-                         evidence_used = EXCLUDED.evidence_used,
-                         tokens_in = EXCLUDED.tokens_in,
-                         tokens_out = EXCLUDED.tokens_out,
-                         seconds = EXCLUDED.seconds,
-                         model = EXCLUDED.model,
-                         extra_evidence = EXCLUDED.extra_evidence""",
+                    """
+                    INSERT INTO explanations
+                    (
+                        push_id,
+                        content,
+                        evidence_used,
+                        tokens_in,
+                        tokens_out,
+                        seconds,
+                        model,
+                        extra_evidence
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (push_id) DO UPDATE SET
+                        content = EXCLUDED.content,
+                        evidence_used = EXCLUDED.evidence_used,
+                        tokens_in = EXCLUDED.tokens_in,
+                        tokens_out = EXCLUDED.tokens_out,
+                        seconds = EXCLUDED.seconds,
+                        model = EXCLUDED.model,
+                        extra_evidence = EXCLUDED.extra_evidence
+                    """,
                     (
                         push_id,
                         Jsonb(explanation.model_dump(mode="json")),
@@ -120,12 +132,11 @@ def save_explanation(
                         use_extra_evidence,
                     ),
                 )
-                cursor.execute("UPDATE pushes SET status = 'completed' WHERE id = %s", (push_id,))
-                cursor.execute(
-                    "UPDATE repos SET last_explained_commit = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
-                    (after_commit, repo_id),
-                )
 
+                cursor.execute(
+                    "UPDATE pushes SET status = 'completed' WHERE id = %s",
+                    (push_id,),
+                )
 
 def mark_push_failed(push_id: int) -> None:
     """Record a failed explanation attempt without touching any previous explanation."""
@@ -143,3 +154,27 @@ def current_mapping(repository: str) -> dict[str, Any] | None:
                 (repository,),
             )
             return cursor.fetchone()
+
+
+def list_repository_pushes(repository: str, limit: int = 50) -> list[PushHistoryItem]:
+    """Return persisted push explanations and evidence, newest first."""
+    if not 1 <= limit <= 100:
+        raise ValueError("limit must be between 1 and 100")
+    with get_db_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(
+                """SELECT push.id AS push_id, push.before_commit, push.after_commit,
+                    push.status, push.created_at,
+                    explanation.content AS explanation,
+                    explanation.evidence_used AS evidence,
+                    explanation.tokens_in, explanation.tokens_out,
+                    explanation.seconds, explanation.model, explanation.extra_evidence
+                   FROM repos repo
+                   JOIN pushes push ON push.repo_id = repo.id
+                   LEFT JOIN explanations explanation ON explanation.push_id = push.id
+                   WHERE lower(repo.name) = lower(%s)
+                   ORDER BY push.created_at DESC, push.id DESC
+                   LIMIT %s""",
+                (repository, limit),
+            )
+            return [PushHistoryItem.model_validate(row) for row in cursor.fetchall()]

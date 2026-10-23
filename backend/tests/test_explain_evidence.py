@@ -122,6 +122,57 @@ def test_test_file_only_change_is_not_flagged_as_untested_production_code():
     assert "no tests cover the changed code" not in flags
 
 
+def test_unchanged_sql_elsewhere_does_not_trigger_database_flag():
+    before_source = """async function saveBook(book) {
+  const rows = await database.query('SELECT id FROM audit_log');
+  if (isNaN(book.price)) return null;
+  return rows;
+}"""
+    after_source = before_source.replace("isNaN(book.price)", "!Number.isFinite(book.price)")
+    push = PushData(
+        repo="owner/repo",
+        before_commit="a" * 40,
+        after_commit="b" * 40,
+        files=[PushFile(path="src/services/bookService.js", status="modified")],
+    )
+    change = _change(
+        "src/services/bookService.js",
+        "saveBook",
+        "-  if (isNaN(book.price)) return null;\n+  if (!Number.isFinite(book.price)) return null;",
+    )
+
+    flags = detect_risk_flags(
+        push,
+        {"src/services/bookService.js": before_source},
+        {"src/services/bookService.js": after_source},
+        [change],
+        [],
+    )
+
+    assert "touches the database" not in flags
+
+
+def test_changed_sql_statement_and_migration_path_keep_database_flag():
+    push = PushData(
+        repo="owner/repo",
+        before_commit="a" * 40,
+        after_commit="b" * 40,
+        files=[PushFile(path="src/books.js", status="modified")],
+    )
+    change = _change(
+        "src/books.js",
+        "findBooks",
+        "-const rows = await db.query('SELECT id FROM books');\n+const rows = await db.query('SELECT id, title FROM books');",
+    )
+
+    flags = detect_risk_flags(push, {}, {}, [change], [])
+
+    assert "touches the database" in flags
+    push.files = [PushFile(path="migrations/004.sql", status="modified")]
+    migration_flags = detect_risk_flags(push, {}, {}, [change.model_copy(update={"file": "migrations/004.sql"})], [])
+    assert "touches the database" in migration_flags
+
+
 def test_all_supported_test_suffixes_are_not_flagged_as_uncovered_code():
     for path in ("tests/example.test.cjs", "src/__tests__/example.mjs", "test/example.spec.jsx"):
         push = PushData(

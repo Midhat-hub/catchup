@@ -63,6 +63,7 @@ class FakeGitHubClient:
         self.contents = contents
         self.tree_revision = None
         self.blob_requests = []
+        self.latest_commit_requests = 0
 
     def get_repo(self, owner, name):
         return RepoMetadata(
@@ -76,6 +77,7 @@ class FakeGitHubClient:
         )
 
     def get_latest_commits(self, owner, name, branch, limit):
+        self.latest_commit_requests += 1
         assert branch == "main"
         return [CommitItem(sha="a" * 40, message="test", parents=[])]
 
@@ -157,6 +159,24 @@ def test_map_repository_persists_exact_revision_and_statistics(monkeypatch):
         persisted["chunks"][caller].name == "caller" and persisted["chunks"][callee].name == "saveBook"
         for caller, callee in persisted["references"]
     )
+
+
+def test_map_repository_can_pin_revision_without_fetching_branch_head(monkeypatch):
+    client = _fake_repository()
+    monkeypatch.setattr(mapping, "register_mapping", lambda metadata, sha: (9, False))
+    monkeypatch.setattr(mapping, "mark_mapping_failed", Mock())
+    monkeypatch.setattr(mapping, "persist_mapping", lambda repo_id, sha, chunks, vectors, refs, links: (len(chunks), len(refs), len(links)))
+
+    result = mapping.map_repository(
+        "owner/books",
+        revision="c" * 40,
+        github_client=client,
+        embedding_function=lambda texts: [[0.1] * 384 for _ in texts],
+    )
+
+    assert result.commit_sha == "c" * 40
+    assert client.latest_commit_requests == 0
+    assert client.tree_revision == "c" * 40
 
 
 def test_same_revision_is_idempotent_and_skips_download(monkeypatch):

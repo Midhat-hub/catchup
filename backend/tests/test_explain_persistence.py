@@ -131,4 +131,4 @@ def test_save_explanation_persists_json_metrics_and_completion(monkeypatch):
     assert isinstance(insert[1][2], Jsonb)
     assert insert[1][3:8] == (100, 30, 1.5, "gemini-test", True)
     assert any("UPDATE pushes SET status = 'completed'" in sql for sql, _ in connection.statements)
-    assert any("last_explained_commit = %s" in sql for sql, _ in connection.statements)
+    

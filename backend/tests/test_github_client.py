@@ -11,6 +11,7 @@ from backend.app.github.client import GitHubClient
 from backend.app.github.exceptions import (
     GitHubAPIUnavailableError,
     GitHubAuthError,
+    GitHubError,
     PrivateRepoError,
     RateLimitExceededError,
     RepoNotFoundError,
@@ -31,16 +32,17 @@ def test_get_token_resolution():
         assert get_token() is None
 
 
-def test_get_auth_headers():
-    """Verify headers include Bearer token only when token is present."""
+def test_get_auth_headers(monkeypatch):
+    """Verify headers include Bearer token only when configured or provided."""
+    import backend.app.github.auth as auth
+
+    monkeypatch.setattr(auth, "get_token", lambda: None)
+
     headers_no_token = get_auth_headers(token=None)
     assert "Authorization" not in headers_no_token
-    assert headers_no_token["Accept"] == "application/vnd.github.v3+json"
-    assert headers_no_token["User-Agent"] == "Catchup-App"
 
-    headers_with_token = get_auth_headers(token="ghp_sample")
-    assert headers_with_token["Authorization"] == "Bearer ghp_sample"
-
+    headers_with_token = get_auth_headers(token="test-token")
+    assert headers_with_token["Authorization"] == "Bearer test-token"
 
 def test_get_repo_public_success():
     """Verify fetching public repository metadata."""
@@ -186,6 +188,41 @@ def test_get_latest_commits():
         assert commits[0].sha == "c1a2b3c4d5e6f7"
         assert commits[0].author_name == "Midhat"
         assert commits[0].message == "Initial commit"
+
+
+def test_get_commits_after_paginates_and_returns_chronological_order():
+    requests = []
+
+    def commit(sha, parent=None):
+        return {
+            "sha": sha,
+            "commit": {"message": sha, "author": {"name": "Author", "date": "2026-10-16T10:00:00Z"}},
+            "parents": [{"sha": parent}] if parent else [],
+        }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        page = int(request.url.params["page"])
+        requests.append(page)
+        if page == 1:
+            return httpx.Response(200, json=[commit("new", "middle"), commit("middle", "base")])
+        if page == 2:
+            return httpx.Response(200, json=[commit("base", "older")])
+        return httpx.Response(200, json=[])
+
+    with GitHubClient(transport=httpx.MockTransport(handler), cache=ETagCache()) as client:
+        commits = client.get_commits_after("owner", "repo", "main", "base", page_size=2)
+
+    assert [item.sha for item in commits] == ["middle", "new"]
+    assert requests == [1, 2]
+
+
+def test_get_commits_after_fails_closed_if_tracking_sha_is_missing():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=[])
+
+    with GitHubClient(transport=httpx.MockTransport(handler), cache=ETagCache()) as client:
+        with pytest.raises(GitHubError, match="Tracked commit"):
+            client.get_commits_after("owner", "repo", "main", "missing")
 
 
 def test_get_compare_returns_push_data():

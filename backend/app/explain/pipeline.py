@@ -51,10 +51,7 @@ _FILE_REFERENCE = re.compile(
     re.IGNORECASE,
 )
 _BACKTICK = re.compile(r"`([^`]+)`")
-_CAMEL_OR_CHAIN = re.compile(
-    r"\b(?:[a-z_$][A-Za-z0-9_$]*[A-Z][A-Za-z0-9_$]*|"
-    r"[A-Z][a-z0-9_$]+[A-Z][A-Za-z0-9_$]*|[\w$]+\.[\w$]+)\b"
-)
+_CODE_IDENTIFIER = re.compile(r"(?<![\w$])[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*")
 
 
 class ChangeAnalysisError(RuntimeError):
@@ -139,16 +136,17 @@ def _sanitize_text(value: str, valid_files: set[str], valid_symbols: set[str]) -
 
     cleaned = _BACKTICK.sub(replace_backtick, cleaned)
 
-    def replace_identifier(match: re.Match[str]) -> str:
-        nonlocal removed
-        token = match.group(0)
-        if token not in valid_symbols and token not in ALLOWED_CODE_WORDS:
-            removed += 1
-            return "related code"
-        return token
-
-    cleaned = _CAMEL_OR_CHAIN.sub(replace_identifier, cleaned)
     return cleaned, removed
+
+
+def _identifiers_in_sources(sources: dict[str, str | None]) -> set[str]:
+    """Collect code identifiers from the exact before/after file snapshots."""
+    return {
+        match.group(0)
+        for source in sources.values()
+        if source is not None
+        for match in _CODE_IDENTIFIER.finditer(source)
+    }
 
 
 def _sanitize_draft(
@@ -256,6 +254,8 @@ def explain_push(
             use_extra_evidence=use_extra_evidence,
             token_budget=token_budget,
         )
+        valid_symbols.update(_identifiers_in_sources(before_sources))
+        valid_symbols.update(_identifiers_in_sources(after_sources))
         if not batches:
             return None
 

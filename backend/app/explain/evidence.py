@@ -24,6 +24,29 @@ from backend.app.models import (
 DEFAULT_PROMPT_TOKEN_BUDGET = 8000
 PROMPT_INSTRUCTION_TOKEN_RESERVE = 700
 SIMILAR_CODE_PER_SYMBOL = 3
+SIMILAR_CODE_PER_SYMBOL = 3
+_SQL_STATEMENT = re.compile(
+    r"\b(?:select|insert\s+into|update\s+\w+\s+set|delete\s+from|create\s+table|alter\s+table|drop\s+table)\b",
+    re.IGNORECASE,
+)
+
+
+def _has_database_change(path: str, changes: list[ChangedSymbol]) -> bool:
+    normalized = path.lower().replace("\\", "/")
+    parts = PurePosixPath(normalized).parts
+    if PurePosixPath(normalized).suffix == ".sql" or any(
+        part in {"db", "database", "migration", "migrations", "schema"} for part in parts
+    ):
+        return True
+    for change in changes:
+        if change.file.lower().replace("\\", "/") != normalized:
+            continue
+        for line in change.diff_snippet.splitlines():
+            if line.startswith(("+++", "---")) or not line.startswith(("+", "-")):
+                continue
+            if _SQL_STATEMENT.search(line[1:]):
+                return True
+    return False
 
 
 def estimate_tokens(text: str) -> int:
@@ -118,13 +141,7 @@ def detect_risk_flags(
     before_by_lower = {path.lower(): source for path, source in before_sources.items()}
     after_by_lower = {path.lower(): source for path, source in after_sources.items()}
     flags: list[str] = []
-    if any(
-        path.endswith(".sql")
-        or "migration" in path
-        or "schema" in path
-        or re.search(r"\b(?:select|insert|update|delete|create table|alter table)\b", (after_by_lower.get(path) or "").lower())
-        for path in paths
-    ):
+    if any(_has_database_change(path, changes) for path in paths):
         flags.append("touches the database")
     if any(
         path.endswith((".env", ".yaml", ".yml", ".toml", ".ini"))

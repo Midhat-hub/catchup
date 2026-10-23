@@ -42,3 +42,8 @@ class MappingStatus(BaseModel):
     chunks_stored: int = 0
     references_stored: int = 0
     test_links_stored: int = 0
+
+
+class RepositoryListItem(MappingStatus):
+    created_at: str
+    updated_at: str

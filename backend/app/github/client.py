@@ -279,6 +279,96 @@ class GitHubClient:
             )
         return commits
 
+    def get_commits_after(
+        self,
+        owner: str,
+        repo: str,
+        branch: str,
+        after_sha: str,
+        *,
+        page_size: int = 100,
+        max_pages: int = 1000,
+    ) -> List[CommitItem]:
+        """Return commits after a tracked SHA in chronological order.
+
+        GitHub's commits endpoint is newest-first. Keep paging until the exact
+        tracked SHA is found; a missing base is an error, never an empty success.
+        """
+        if not 1 <= page_size <= 100:
+            raise ValueError("page_size must be between 1 and 100")
+        if max_pages < 1:
+            raise ValueError("max_pages must be at least 1")
+        commits_by_sha: Dict[str, CommitItem] = {}
+        head_sha: Optional[str] = None
+        endpoint = f"repos/{owner}/{repo}/commits"
+        for page in range(1, max_pages + 1):
+            data = self._request(
+                "GET",
+                endpoint,
+                params={"sha": branch, "per_page": page_size, "page": page},
+            )
+            if not isinstance(data, list):
+                raise GitHubError("GitHub returned an invalid commit history response.")
+            for item in data:
+                sha = item.get("sha")
+                if not sha:
+                    continue
+                if head_sha is None:
+                    head_sha = sha
+                commit_info = item.get("commit", {})
+                author_info = commit_info.get("author") or {}
+                parents = [parent.get("sha") for parent in item.get("parents", []) if parent.get("sha")]
+                commits_by_sha[sha] = CommitItem(
+                    sha=sha,
+                    message=commit_info.get("message", "").strip(),
+                    author_name=author_info.get("name", "Unknown"),
+                    author_email=author_info.get("email"),
+                    date=author_info.get("date"),
+                    parents=parents,
+                    html_url=item.get("html_url"),
+                )
+            if after_sha in commits_by_sha:
+                break
+            if len(data) < page_size:
+                break
+        if after_sha not in commits_by_sha:
+            raise GitHubError(
+                f"Tracked commit {after_sha} was not found in the fetched history for {owner}/{repo}@{branch}; "
+                "polling stopped without advancing the repository cursor."
+            )
+        if head_sha == after_sha:
+            return []
+
+        descending_first_parent: List[CommitItem] = []
+        current_sha = head_sha
+        visited: set[str] = set()
+        while current_sha != after_sha:
+            if current_sha in visited:
+                raise GitHubError("GitHub returned a cyclic commit parent chain.")
+            visited.add(current_sha)
+            commit = commits_by_sha.get(current_sha)
+            if commit is None:
+                item = self._request("GET", f"repos/{owner}/{repo}/commits/{current_sha}")
+                commit_info = item.get("commit", {})
+                author_info = commit_info.get("author") or {}
+                parents = [parent.get("sha") for parent in item.get("parents", []) if parent.get("sha")]
+                commit = CommitItem(
+                    sha=item["sha"],
+                    message=commit_info.get("message", "").strip(),
+                    author_name=author_info.get("name", "Unknown"),
+                    author_email=author_info.get("email"),
+                    date=author_info.get("date"),
+                    parents=parents,
+                    html_url=item.get("html_url"),
+                )
+            descending_first_parent.append(commit)
+            if not commit.parents:
+                raise GitHubError(
+                    f"Tracked commit {after_sha} is not an ancestor of {head_sha}; polling stopped without advancing."
+                )
+            current_sha = commit.parents[0]
+        return list(reversed(descending_first_parent))
+
     def get_compare(
         self,
         owner: str,

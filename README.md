@@ -1,6 +1,6 @@
 # Catchup
 
-Catchup is a local tool for mapping public JavaScript GitHub repositories and explaining meaningful changes between commits. It stores parsed code chunks, local embeddings, likely caller relationships, static test links, push explanations, evidence, and generation metrics. Polling, email delivery, and the React UI are later project steps and are not implemented yet.
+Catchup is a local tool for mapping public JavaScript GitHub repositories and explaining meaningful changes between commits. It stores parsed code chunks, local embeddings, likely caller relationships, static test links, push explanations, evidence, and generation metrics. Push polling and email delivery are later project steps and are not implemented yet.
 
 ## Requirements
 
@@ -65,6 +65,18 @@ Invoke-RestMethod -Method Post `
 Set `use_extra_evidence` to `false` to omit callers, test links, similar code, and rule-based flags. Comment/whitespace-only JavaScript changes return HTTP 204 without calling Gemini or creating an explanation. A successful result is saved in the existing `pushes` and `explanations` tables with its evidence, token counts, duration, model, and extra-evidence setting. Completed push explanations are returned from storage on repeat requests.
 
 Gemini uses `GEMINI_API_KEY` from `.env` and defaults to `gemini-3.5-flash-lite`; `GEMINI_MODEL` can override the model. The key is sent in an HTTP header and is never logged. Calls request JSON structured output, retry transient errors with bounded exponential backoff, and cache responses in memory. Risk flags are computed locally, and generated file/function references are filtered against mapped repository evidence.
+
+## Run The Frontend
+
+Keep the FastAPI server running in one terminal. In a second PowerShell terminal:
+
+```powershell
+cd frontend
+npm install
+npm run dev -- --host 127.0.0.1
+```
+
+Open [http://127.0.0.1:5173](http://127.0.0.1:5173). Vite proxies `/api` and `/health` to FastAPI at `127.0.0.1:8000`; the frontend never reads `.env` or receives API keys. Add a public `owner/name` repository to map it, then choose **Explain a push** and enter the before/after commit SHAs. Saved pushes appear newest first with their persisted explanation and evidence. `GET /api/repos` and `GET /api/repos/{owner}/{repo}/pushes` read existing repository, push, explanation, and evidence records; neither route changes database contents.
 
 ## Parsing And Embeddings
 

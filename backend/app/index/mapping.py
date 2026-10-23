@@ -184,6 +184,7 @@ def _mapping_statistics_from_status(
 def map_repository(
     repository: str,
     *,
+    revision: str | None = None,
     github_client: GitHubClient | None = None,
     embedding_function: Callable[[Sequence[str]], list[list[float]]] | None = None,
 ) -> MappingStatistics:
@@ -201,10 +202,15 @@ def map_repository(
             raise UnsupportedRepositoryError(
                 f"Repository primary language is {metadata.language}; Catchup currently maps JavaScript repositories only."
             )
-        latest = client.get_latest_commits(owner, repo_name, branch=metadata.default_branch, limit=1)
-        if not latest:
-            raise UnsupportedRepositoryError("The repository's default branch has no commit to map.")
-        commit_sha = latest[0].sha
+        if revision is None:
+            latest = client.get_latest_commits(owner, repo_name, branch=metadata.default_branch, limit=1)
+            if not latest:
+                raise UnsupportedRepositoryError("The repository's default branch has no commit to map.")
+            commit_sha = latest[0].sha
+        else:
+            if not re.fullmatch(r"[0-9a-fA-F]{7,64}", revision):
+                raise RepositoryIdentifierError("Revision must be a valid Git commit SHA.")
+            commit_sha = revision
         repo_id, already_mapped = register_mapping(metadata, commit_sha)
         if already_mapped:
             status = read_mapping_status(metadata.full_name)

@@ -4,15 +4,22 @@ Provides application lifecycle management and robust health checks.
 """
 
 from contextlib import asynccontextmanager
+import asyncio
 import logging
 from typing import Any, Dict
 from fastapi import FastAPI, HTTPException, Response, status
 
 from backend.app.config import get_settings
 from backend.app.db import check_db_health, close_pool
+from backend.app.delivery.poller import polling_loop
+from backend.app.delivery.worker import worker_loop
 from backend.app.explain.gemini import GeminiConfigurationError, GeminiError
-from backend.app.explain.models import ExplainPushRequest
-from backend.app.explain.persistence import MappingRevisionMismatchError, RepositoryNotMappedError
+from backend.app.explain.models import ExplainPushRequest, PushHistoryItem
+from backend.app.explain.persistence import (
+    MappingRevisionMismatchError,
+    RepositoryNotMappedError,
+    list_repository_pushes,
+)
 from backend.app.explain.pipeline import ChangeAnalysisError, explain_push
 from backend.app.github.exceptions import (
     GitHubError,
@@ -26,8 +33,15 @@ from backend.app.index.mapping import (
     UnsupportedRepositoryError,
     get_repository_mapping_status,
     map_repository,
+    parse_repository_identifier,
 )
-from backend.app.index.mapping_models import MappingStatistics, MappingStatus, RepositoryMappingRequest
+from backend.app.index.mapping_models import (
+    MappingStatistics,
+    MappingStatus,
+    RepositoryListItem,
+    RepositoryMappingRequest,
+)
+from backend.app.index.persistence import list_repository_mappings
 from backend.app.parsing.javascript import JavaScriptParseError
 
 # Configure root logger
@@ -43,9 +57,29 @@ logger = logging.getLogger("catchup")
 async def lifespan(app: FastAPI):
     """Manage application startup and shutdown events."""
     logger.info("Starting %s in %s mode", settings.app_name, settings.app_env)
-    yield
-    logger.info("Shutting down %s", settings.app_name)
-    close_pool()
+    existing_tasks = getattr(app.state, "catchup_background_tasks", None)
+    owns_tasks = not existing_tasks or not any(not task.done() for task in existing_tasks)
+    if owns_tasks:
+        tasks = [
+            asyncio.create_task(polling_loop(), name="catchup-github-poller"),
+            asyncio.create_task(worker_loop(), name="catchup-push-worker"),
+        ]
+        app.state.catchup_background_tasks = tasks
+        logger.info("Started local GitHub polling and push worker services")
+    else:
+        tasks = existing_tasks
+        logger.info("Reusing active local polling/worker tasks")
+    try:
+        yield
+    finally:
+        if owns_tasks:
+            logger.info("Stopping local polling and push worker services")
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            app.state.catchup_background_tasks = None
+        logger.info("Shutting down %s", settings.app_name)
+        close_pool()
 
 
 app = FastAPI(
@@ -54,6 +88,12 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+
+@app.get("/api/repos", response_model=list[RepositoryListItem], tags=["Repositories"])
+def repositories_list() -> list[RepositoryListItem]:
+    """List repositories already added to this local Catchup database."""
+    return [RepositoryListItem.model_validate(row) for row in list_repository_mappings()]
 
 
 @app.get("/", tags=["General"])
@@ -152,6 +192,23 @@ def repository_mapping_status(owner: str, repo: str) -> MappingStatus:
     if mapping_status is None:
         raise HTTPException(status_code=404, detail="Repository mapping was not found.")
     return mapping_status
+
+
+@app.get(
+    "/api/repos/{owner}/{repo}/pushes",
+    response_model=list[PushHistoryItem],
+    tags=["Pushes"],
+)
+def repository_pushes(owner: str, repo: str, limit: int = 50) -> list[PushHistoryItem]:
+    """List persisted pushes newest first, including any saved explanation evidence."""
+    try:
+        repository = f"{owner}/{repo}"
+        parse_repository_identifier(repository)
+        return list_repository_pushes(repository, limit=limit)
+    except RepositoryIdentifierError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.post("/api/pushes/explain", tags=["Pushes"], response_model=None)

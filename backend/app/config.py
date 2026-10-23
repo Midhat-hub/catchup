@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     gemini_model: str = Field(default="gemini-3.5-flash-lite", description="Gemini Flash or Flash-Lite model id")
     notification_email: Optional[str] = Field(default=None, description="Notification recipient email")
 
+    # Step 5 automation settings
+    github_poll_interval_seconds: int = Field(default=180, ge=30, le=3600)
+    job_worker_idle_seconds: float = Field(default=2.0, ge=0.1, le=60.0)
+    job_lease_seconds: int = Field(default=300, ge=30, le=3600)
+    job_max_attempts: int = Field(default=4, ge=1, le=10)
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
