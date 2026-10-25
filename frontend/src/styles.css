@@ -32,6 +32,10 @@ a { color: inherit; }
 .brand-mark { display: grid; place-items: center; height: 35px; width: 35px; border-radius: 11px; background: var(--lime); color: var(--green-deep); font-family: Georgia, serif; font-size: 24px; font-weight: 700; }
 .brand strong { display: block; font-size: 17px; letter-spacing: .2px; }
 .brand small { display: block; color: #9eb8a9; font-family: "DM Mono", monospace; font-size: 8px; margin-top: 2px; }
+.primary-nav { display: grid; gap: 4px; margin: -16px 0 24px; }
+.primary-nav-item { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border: 1px solid transparent; border-radius: 6px; color: #dbe7dc; font-size: 12px; text-decoration: none; }
+.primary-nav-item:hover, .primary-nav-item.is-active { background: #244b39; border-color: #355e49; color: #fff; }
+.primary-nav-item > span { width: 14px; color: var(--lime); text-align: center; font-size: 16px; }
 .rail-section-head { display: flex; align-items: center; justify-content: space-between; padding: 0 10px 9px; color: #9eb8a9; font-size: 11px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; }
 .count-badge { display: grid; place-items: center; min-width: 21px; height: 21px; padding: 0 5px; border-radius: 20px; background: #2c5945; color: #e9f2e9; font-family: "DM Mono", monospace; font-size: 10px; }
 .repository-nav { display: grid; gap: 4px; overflow-y: auto; max-height: 44vh; }
@@ -200,6 +204,8 @@ h1, h2, h3, h4, p { margin-top: 0; }
   .app-shell { display: block; }
   .side-rail { position: static; height: auto; min-height: 0; padding: 13px 14px; }
   .brand { padding: 0 2px 13px; }
+  .primary-nav { display: flex; margin: 0 0 13px; }
+  .primary-nav-item { flex: 1; }
   .rail-section-head { padding-left: 2px; }
   .repository-nav { display: flex; overflow-x: auto; max-height: none; gap: 6px; padding-bottom: 5px; }
   .repo-nav-item { width: auto; min-width: 142px; }

@@ -14,6 +14,7 @@ from backend.app.config import get_settings
 from backend.app.db import check_db_health, close_pool
 from backend.app.delivery.poller import polling_loop
 from backend.app.delivery.worker import worker_loop
+from backend.app.delivery.email_notifications import email_notification_loop
 from backend.app.explain.gemini import GeminiConfigurationError, GeminiError
 from backend.app.explain.models import ExplainPushRequest, PushHistoryItem
 from backend.app.explain.persistence import (
@@ -64,17 +65,18 @@ async def lifespan(app: FastAPI):
         tasks = [
             asyncio.create_task(polling_loop(), name="catchup-github-poller"),
             asyncio.create_task(worker_loop(), name="catchup-push-worker"),
+            asyncio.create_task(email_notification_loop(), name="catchup-email-notifications"),
         ]
         app.state.catchup_background_tasks = tasks
-        logger.info("Started local GitHub polling and push worker services")
+        logger.info("Started GitHub polling, push worker, and email notification services")
     else:
         tasks = existing_tasks
-        logger.info("Reusing active local polling/worker tasks")
+        logger.info("Reusing active local polling, push worker, and email notification tasks")
     try:
         yield
     finally:
         if owns_tasks:
-            logger.info("Stopping local polling and push worker services")
+            logger.info("Stopping local polling, push worker, and email notification services")
             for task in tasks:
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)

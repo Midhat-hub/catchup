@@ -56,6 +56,7 @@ def test_poller_enqueues_multiple_commits_chronologically(monkeypatch):
     assert client.branches == [("release", baseline)]
     assert enqueue.call_args_list[0].args == (8, "owner/repo", baseline, commit_b)
     assert enqueue.call_args_list[1].args == (8, "owner/repo", commit_b, commit_c)
+    assert all(call.kwargs == {"branch": "release"} for call in enqueue.call_args_list)
 
 
 def test_duplicate_jobs_are_not_counted_as_new_jobs(monkeypatch):

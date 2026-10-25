@@ -54,7 +54,13 @@ def _poll_repository(client: GitHubClient, row: dict[str, Any], summary: Polling
                 f"Commit history for {repository} does not form the expected first-parent chain; "
                 "the tracking cursor was not advanced."
             )
-        job_id = enqueue_push_job(repo_id, repository, previous_sha, commit.sha)
+        job_id = enqueue_push_job(
+            repo_id,
+            repository,
+            previous_sha,
+            commit.sha,
+            branch=metadata.default_branch,
+        )
         if job_id is not None:
             summary.jobs_created += 1
         previous_sha = commit.sha

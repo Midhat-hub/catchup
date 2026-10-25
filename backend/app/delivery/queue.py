@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import logging
 import re
 from typing import Any
 
@@ -13,6 +14,7 @@ from psycopg.types.json import Jsonb
 from backend.app.db import get_db_connection
 
 JOB_TYPE_EXPLAIN_PUSH = "explain_push"
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -53,7 +55,13 @@ def establish_tracking_baseline(repo_id: int) -> str | None:
             return current[0] if current else None
 
 
-def enqueue_push_job(repo_id: int, repository: str, before_commit: str, after_commit: str) -> int | None:
+def enqueue_push_job(
+    repo_id: int,
+    repository: str,
+    before_commit: str,
+    after_commit: str,
+    branch: str | None = None,
+) -> int | None:
     """Durably enqueue one commit; the unique job index makes retries idempotent."""
     payload = {
         "type": JOB_TYPE_EXPLAIN_PUSH,
@@ -62,6 +70,8 @@ def enqueue_push_job(repo_id: int, repository: str, before_commit: str, after_co
         "before_commit": before_commit,
         "after_commit": after_commit,
     }
+    if branch:
+        payload["branch"] = branch
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute(
@@ -253,6 +263,37 @@ def complete_job(job: JobRecord) -> bool:
                     raise RuntimeError(
                         f"Could not complete job {job.id}: "
                         "it is no longer running."
+                    )
+
+                try:
+                    from backend.app.delivery.email_notifications import notifications_configured
+
+                    if notifications_configured():
+                        with conn.transaction():
+                            cur.execute(
+                                """
+                                INSERT INTO push_email_notifications (
+                                    job_id, repository, branch,
+                                    before_commit, after_commit, summary
+                                )
+                                SELECT j.id, j.payload->>'repository', j.payload->>'branch',
+                                       j.payload->>'before_commit', j.payload->>'after_commit',
+                                       e.content->>'one_line'
+                                FROM jobs j
+                                JOIN pushes p
+                                  ON p.repo_id = (j.payload->>'repo_id')::integer
+                                 AND p.before_commit = j.payload->>'before_commit'
+                                 AND p.after_commit = j.payload->>'after_commit'
+                                JOIN explanations e ON e.push_id = p.id
+                                WHERE j.id = %s AND j.status = 'completed'
+                                ON CONFLICT (job_id) DO NOTHING
+                                """,
+                                (job.id,),
+                            )
+                except Exception:
+                    logger.exception(
+                        "Could not queue email notification for completed push job id=%s",
+                        job.id,
                     )
 
     return True

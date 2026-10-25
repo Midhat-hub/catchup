@@ -4,6 +4,7 @@ const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
 const API_BASE_URL = (configuredApiBaseUrl || (
   import.meta.env.DEV ? "" : PRODUCTION_API_BASE_URL
 )).replace(/\/+$/, "");
+let repositoriesInFlight = null;
 
 function validateApiBaseUrl() {
   if (!API_BASE_URL) return;
@@ -67,6 +68,15 @@ export async function getRepositories() {
 
   console.error("Unexpected /api/repos response:", data);
   throw new Error("The repositories API returned an unexpected response.");
+}
+
+export function getRepositoriesOnce() {
+  if (!repositoriesInFlight) {
+    repositoriesInFlight = getRepositories().finally(() => {
+      repositoriesInFlight = null;
+    });
+  }
+  return repositoriesInFlight;
 }
 
 export function getMappingStatus(repository) {

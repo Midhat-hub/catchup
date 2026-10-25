@@ -79,7 +79,7 @@
 .landing-intro h2, .landing-feature-heading h2, .landing-final-cta h2 { margin: 0; font: 500 clamp(34px, 4vw, 49px)/1.08 Newsreader,Georgia,serif; letter-spacing: -.8px; }
 .landing-intro-copy > p { max-width: 600px; margin: 20px 0 0; color: #69766c; font-size: 13px; line-height: 1.8; }
 .landing-steps-section { padding-top: 25px; }
-.landing-steps-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; margin-top: 31px; }
+.landing-steps-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 14px; margin-top: 31px; }
 .landing-step-card { min-height: 255px; padding: 24px 23px; border: 1px solid #dce4db; border-radius: 5px; background: rgba(255,255,255,.58); }
 .landing-step-highlight { background: #e9f0e3; border-color: #d6e1cf; }
 .landing-step-number { color: #7b897d; font-size: 9px; }
@@ -112,6 +112,7 @@
   .landing-intro, .landing-steps-section, .landing-features { padding-left: 6.5%; padding-right: 6.5%; }
   .landing-intro { grid-template-columns: 1fr; gap: 25px; }
   .landing-feature-layout { gap: 7%; }
+  .landing-steps-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 @media (max-width: 620px) {
   .landing-nav { height: 68px; padding: 0 18px; }
@@ -151,6 +152,10 @@
 .landing-sidebar-brand > span:last-child { display: block; }
 .landing-sidebar-brand strong { display: block; font-size: 17px; letter-spacing: .2px; }
 .landing-sidebar-brand small { display: block; margin-top: 3px; color: #9eb8a9; font: 8px "DM Mono", monospace; }
+.landing-primary-nav { display: grid; gap: 4px; margin: -15px 0 22px; }
+.landing-primary-item { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border: 1px solid transparent; border-radius: 6px; color: #dbe7dc !important; font-size: 12px; }
+.landing-primary-item:hover, .landing-primary-item.is-active { background: #244b39; border-color: #355e49; color: #fff !important; }
+.landing-primary-item > span { font-size: 12px; }
 .landing-sidebar-heading { display: flex; align-items: center; justify-content: space-between; padding: 0 9px 10px; color: #9eb8a9; font-size: 11px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; }
 .landing-repo-count { display: grid; place-items: center; min-width: 21px; height: 21px; padding: 0 5px; border-radius: 20px; background: #2c5945; color: #e9f2e9; font: 10px "DM Mono", monospace; }
 .landing-repository-list { display: grid; gap: 4px; overflow-y: auto; max-height: calc(100vh - 210px); }
@@ -183,6 +188,8 @@
   .landing-layout { display: flex; flex-direction: column; }
   .landing-sidebar { position: relative; height: auto; min-height: 0; padding: 13px 14px 10px; }
   .landing-sidebar-brand { padding: 0 2px 13px; }
+  .landing-primary-nav { display: flex; margin: 0 0 13px; }
+  .landing-primary-item { flex: 1; }
   .landing-sidebar-heading { padding: 0 2px 8px; }
   .landing-repository-list { display: flex; overflow-x: auto; max-height: none; padding-bottom: 4px; }
   .landing-repo-item { flex: 0 0 155px; width: 155px; }
