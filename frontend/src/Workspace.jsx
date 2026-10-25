@@ -557,7 +557,7 @@ export default function Workspace({
 
   useEffect(() => {
     if (!selectedRepository || !active) return undefined;
-    let active = true;
+    let alive = true;
     const stopRefreshing = startActivityRefresh({
       repository: selectedRepository,
       windowTarget: window,
@@ -565,14 +565,14 @@ export default function Workspace({
       refresh: async (repository) => {
         try {
           const [statusResult, pushRows] = await loadRepositoryActivity(repository);
-          if (!active) return;
+          if (!alive) return;
           setMapping(statusResult);
           setPushes(pushRows);
           setSelectedPushId((current) =>
             applyActivityRefresh(pushRows, current).selectedPushId,
           );
         } catch (requestError) {
-          if (active) {
+          if (alive) {
             console.warn(
               `Could not refresh activity for ${repository}:`,
               requestError,
@@ -582,7 +582,7 @@ export default function Workspace({
       },
     });
     return () => {
-      active = false;
+      alive = false;
       stopRefreshing();
     };
   }, [active, loadRepositoryActivity, selectedRepository]);

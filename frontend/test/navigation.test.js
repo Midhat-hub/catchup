@@ -46,5 +46,6 @@ test("Home and Workspace navigation retain the mounted workspace state", async (
   assert.match(app, /const WorkspacePage = lazy\(\(\) => import\("\.\/Workspace\.jsx"\)\)/);
   assert.match(workspace, /const shaRepositoryRef = useRef\(""\)/);
   assert.match(workspace, /startActivityRefresh\(/);
+  assert.doesNotMatch(workspace, /let active = true/);
   assert.match(workspace, /getRepositoriesOnce\(\)/);
 });
