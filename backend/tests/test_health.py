@@ -25,6 +25,24 @@ def test_health_app_endpoint():
     assert data["app"] == "Catchup"
 
 
+def test_cors_allows_production_and_catchup_preview_origins():
+    for origin in (
+        "https://catchup-flax-three.vercel.app",
+        "https://catchup-obz2wqrk7-midhat-hub.vercel.app",
+    ):
+        response = client.options(
+            "/api/repos/map",
+            headers={
+                "Origin": origin,
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+        assert response.status_code == 200
+        assert response.headers["access-control-allow-origin"] == origin
+        assert "POST" in response.headers["access-control-allow-methods"]
+
+
 def test_health_healthy_database():
     """Verify /health returns 200 when database and vector extension are ready."""
     mock_health = {

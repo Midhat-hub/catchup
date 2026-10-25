@@ -96,6 +96,7 @@ app.add_middleware(
     allow_origins=[
         "https://catchup-flax-three.vercel.app",
     ],
+    allow_origin_regex=r"^https://catchup-[a-z0-9-]+-midhat-hub\.vercel\.app$",
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type"],
 )
