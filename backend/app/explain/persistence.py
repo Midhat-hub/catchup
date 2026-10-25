@@ -167,8 +167,10 @@ def list_repository_pushes(repository: str, limit: int = 50) -> list[PushHistory
                     push.status, push.created_at,
                     explanation.content AS explanation,
                     explanation.evidence_used AS evidence,
-                    explanation.tokens_in, explanation.tokens_out,
-                    explanation.seconds, explanation.model, explanation.extra_evidence
+                    COALESCE(explanation.tokens_in, 0) AS tokens_in,
+                    COALESCE(explanation.tokens_out, 0) AS tokens_out,
+                    COALESCE(explanation.seconds, 0.0) AS seconds,
+                    explanation.model, explanation.extra_evidence
                    FROM repos repo
                    JOIN pushes push ON push.repo_id = repo.id
                    LEFT JOIN explanations explanation ON explanation.push_id = push.id

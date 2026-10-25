@@ -38,15 +38,16 @@ class FakeCursor:
         return None
 
     def fetchall(self):
-        return []
+        return self.connection.rows
 
 
 class FakeConnection:
-    def __init__(self, repository_row=None, cached_row=None, push_row=None, push_id=40):
+    def __init__(self, repository_row=None, cached_row=None, push_row=None, push_id=40, rows=None):
         self.repository_row = repository_row
         self.cached_row = cached_row
         self.push_row = push_row
         self.push_id = push_id
+        self.rows = rows or []
         self.statements = []
         self.transaction_opened = False
 
@@ -131,4 +132,37 @@ def test_save_explanation_persists_json_metrics_and_completion(monkeypatch):
     assert isinstance(insert[1][2], Jsonb)
     assert insert[1][3:8] == (100, 30, 1.5, "gemini-test", True)
     assert any("UPDATE pushes SET status = 'completed'" in sql for sql, _ in connection.statements)
-    
+
+
+def test_push_history_defaults_metrics_when_explanation_is_missing(monkeypatch):
+    from datetime import UTC, datetime
+
+    connection = FakeConnection(
+        rows=[{
+            "push_id": 42,
+            "before_commit": "a" * 40,
+            "after_commit": "b" * 40,
+            "status": "failed",
+            "created_at": datetime(2026, 10, 25, tzinfo=UTC),
+            "explanation": None,
+            "evidence": None,
+            "tokens_in": 0,
+            "tokens_out": 0,
+            "seconds": 0.0,
+            "model": None,
+            "extra_evidence": None,
+        }]
+    )
+    monkeypatch.setattr(persistence, "get_db_connection", lambda: _connection_context(connection))
+
+    history = persistence.list_repository_pushes("owner/repo")
+
+    assert len(history) == 1
+    assert history[0].explanation is None
+    assert history[0].tokens_in == 0
+    assert history[0].tokens_out == 0
+    assert history[0].seconds == 0.0
+    query = connection.statements[0][0]
+    assert "COALESCE(explanation.tokens_in, 0) AS tokens_in" in query
+    assert "COALESCE(explanation.tokens_out, 0) AS tokens_out" in query
+    assert "COALESCE(explanation.seconds, 0.0) AS seconds" in query
