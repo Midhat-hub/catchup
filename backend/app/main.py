@@ -8,6 +8,7 @@ import asyncio
 import logging
 from typing import Any, Dict
 from fastapi import FastAPI, HTTPException, Response, status
+from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.config import get_settings
 from backend.app.db import check_db_health, close_pool
@@ -87,6 +88,12 @@ app = FastAPI(
     description="Explain every push to public GitHub repositories in plain language.",
     version="0.1.0",
     lifespan=lifespan,
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://catchup-flax-three.vercel.app"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type"],
 )
 print("PYTHON VERSION:", sys.version, flush=True)
 

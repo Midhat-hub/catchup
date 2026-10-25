@@ -1,9 +1,26 @@
 
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL || ""
-).replace(/\/+$/, "");
+const PRODUCTION_API_BASE_URL = "https://catchup-7tzq.onrender.com";
+const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+const API_BASE_URL = (configuredApiBaseUrl || (
+  import.meta.env.DEV ? "" : PRODUCTION_API_BASE_URL
+)).replace(/\/+$/, "");
+
+function validateApiBaseUrl() {
+  if (!API_BASE_URL) return;
+  try {
+    const url = new URL(API_BASE_URL);
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) {
+      throw new Error("unsupported URL");
+    }
+  } catch {
+    throw new Error(
+      "Catchup API URL is invalid. Set VITE_API_BASE_URL to the backend base URL (for production: https://catchup-7tzq.onrender.com).",
+    );
+  }
+}
 
 async function request(path, options = {}) {
+  validateApiBaseUrl();
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers: {
@@ -15,6 +32,11 @@ async function request(path, options = {}) {
   if (response.status === 204) return null;
 
   const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("text/html")) {
+    throw new Error(
+      `Catchup expected a JSON API response from ${API_BASE_URL || window.location.origin} but received HTML. Check VITE_API_BASE_URL and the backend deployment.`,
+    );
+  }
   const body = contentType.includes("application/json")
     ? await response.json()
     : await response.text();
