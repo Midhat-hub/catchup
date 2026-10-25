@@ -1,115 +1,403 @@
-# Catchup
+<div align="center">
 
-Catchup is a local tool for mapping public JavaScript GitHub repositories and explaining meaningful changes between commits. It stores parsed code chunks, local embeddings, likely caller relationships, static test links, push explanations, evidence, and generation metrics. Push polling and email delivery are later project steps and are not implemented yet.
+# ⚡ Catchup
 
-## Requirements
+### Stay up to date with every change in your codebase.
 
-- Python 3.11 or newer (the project venv currently uses Python 3.12).
-- Docker Desktop with Docker Compose, for PostgreSQL 16 and pgvector.
-- Network access on the first mapping run to download the local embedding model and to read public repositories from GitHub.
+**Catchup automatically monitors GitHub repositories, detects new commits, and generates AI-powered explanations of code changes—so you can understand what changed without manually digging through every commit.**
 
-## Setup
+<br />
 
-From the repository root in PowerShell:
+[🚀 Live Demo](https://catchup-flax-three.vercel.app/) · [💻 Source Code](https://github.com/Midhat-hub/catchup)
+
+<br />
+
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge\&logo=react\&logoColor=61DAFB)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge\&logo=vite\&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge\&logo=python\&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge\&logo=fastapi\&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge\&logo=postgresql\&logoColor=white)
+
+</div>
+
+---
+
+## 💡 The Idea Behind Catchup
+
+Understanding how a codebase evolves can be time-consuming.
+
+When working on a team project, contributing to an unfamiliar repository, or returning to a project after a break, developers often need to inspect commits, compare changes, and trace the evolution of the codebase to understand what happened.
+
+**Catchup simplifies this process by bringing repository activity and AI-generated change explanations into one place.**
+
+Connect a GitHub repository, let Catchup track new commits, and review the changes through an activity feed with explanations generated from the code.
+
+The goal is simple: **less time figuring out what changed, more time building.**
+
+## ✨ Features
+
+### 🔄 Automatic Commit Detection
+
+Catchup periodically checks monitored repositories for new commits, allowing repository activity to appear without manually entering commit SHAs.
+
+### 🤖 AI-Powered Code Explanations
+
+Generate explanations of code changes to help developers understand what a commit modifies and how the changes relate to the surrounding code.
+
+### 🔍 Commit Change Tracking
+
+Track repository progress through commit history and compare changes between revisions.
+
+### 🧠 Code Indexing and Embeddings
+
+Parse repository files into smaller chunks, generate embeddings, and store indexed code for use in the analysis workflow.
+
+### 📚 Repository Activity History
+
+View detected repository activity and previously generated explanations in a centralized interface.
+
+### ⚙️ Background Processing
+
+Use background polling and job processing to discover commits, process repository changes, and generate explanations without requiring every operation to happen inside a frontend request.
+
+### 🌐 Live Deployment
+
+Access the deployed application through a browser without setting up the project locally.
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer                  | Technologies                   | Purpose                                          |
+| ---------------------- | ------------------------------ | ------------------------------------------------ |
+| Frontend               | React.js, Vite                 | Interactive user interface                       |
+| Backend                | Python, FastAPI                | API endpoints and application logic              |
+| Database               | Neon PostgreSQL                | Persistent application data                      |
+| Vector Storage         | PostgreSQL, pgvector           | Store and retrieve code embeddings               |
+| Repository Integration | GitHub API                     | Access repository information and commit history |
+| AI                     | LLM integration and embeddings | Explain code changes and support code analysis   |
+| Frontend Hosting       | Vercel                         | Deploy the web application                       |
+| Backend Hosting        | Render                         | Host the API and background processing           |
+| Database Hosting       | Neon                           | Managed PostgreSQL database                      |
+
+---
+
+## 🔄 How It Works
+
+Catchup combines repository monitoring, code indexing, background jobs, and AI-generated explanations into a single workflow.
+
+```mermaid
+flowchart TD
+    A[GitHub Repository] --> B[Repository Poller]
+    B --> C[Detect New Commits]
+    C --> D[Background Job Queue]
+    D --> E[Repository Indexing]
+    E --> F[Parse and Chunk Code]
+    F --> G[Generate Embeddings]
+    G --> H[(PostgreSQL + pgvector)]
+    H --> I[Generate AI Explanation]
+    I --> J[(Persist Activity and Explanation)]
+    J --> K[Frontend Activity Feed]
+    K --> L[Developer Reviews Changes]
+```
+
+### Workflow Breakdown
+
+**1. Connect a repository**
+
+Catchup works with GitHub repository information to identify the codebase and its commit history.
+
+**2. Monitor repository activity**
+
+A background polling process checks the repository for new commits.
+
+**3. Discover and queue changes**
+
+New commits are identified and passed through the background job-processing workflow.
+
+**4. Index the code**
+
+Repository files are parsed into chunks and converted into embeddings for storage and retrieval.
+
+**5. Generate explanations**
+
+The AI workflow processes the relevant code changes and generates an explanation.
+
+**6. Display the results**
+
+The resulting activity and explanation are persisted and made available through the Catchup interface.
+
+---
+
+## 🏗️ Architecture
+
+Catchup separates its user interface, API, background processing, and persistent storage.
+
+```text
+                    ┌────────────────────────┐
+                    │      GitHub API        │
+                    └───────────┬────────────┘
+                                │
+                                ▼
+┌─────────────────┐    ┌─────────────────────┐
+│   React + Vite  │◄──►│    FastAPI Backend   │
+│    Frontend     │    │                     │
+└─────────────────┘    │  Repository Poller   │
+                       │  Background Workers │
+                       │  Code Indexing       │
+                       │  AI Explanations     │
+                       └──────────┬──────────┘
+                                  │
+                                  ▼
+                       ┌─────────────────────┐
+                       │   Neon PostgreSQL   │
+                       │                     │
+                       │  Persistent Data    │
+                       │  Code Embeddings    │
+                       │     pgvector        │
+                       └─────────────────────┘
+```
+
+### Why This Architecture?
+
+* **Separation of concerns:** The frontend, API, and background processing have distinct responsibilities.
+* **Persistent state:** Repository activity and processing state can be stored across application restarts.
+* **Asynchronous processing:** Commit discovery and explanation generation can be handled through background jobs.
+* **Vector-based retrieval:** Code embeddings provide a foundation for retrieving relevant code during analysis.
+* **Independent deployment:** The frontend and backend can be deployed and updated separately.
+
+---
+
+## 🚀 Try the Live Application
+
+**Live application:** [catchup-flax-three.vercel.app](https://catchup-flax-three.vercel.app/)
+
+### Getting Started
+
+1. Open the live application.
+2. Follow the available repository setup and mapping workflow.
+3. Wait for the repository to finish indexing.
+4. Review the repository's activity.
+5. Push a new commit to the monitored repository.
+6. Allow the background polling process to detect the change.
+7. Open Catchup to review the resulting activity and explanation.
+
+*Detection and explanation generation depend on the backend being available, valid configuration, and the relevant GitHub and AI services being accessible.*
+
+---
+
+## 💻 Run Locally
+
+### Prerequisites
+
+Install the following before running Catchup:
+
+* [Node.js](https://nodejs.org/) and npm
+* [Python](https://www.python.org/)
+* [Git](https://git-scm.com/)
+* A PostgreSQL database with the required `pgvector` support
+* GitHub API credentials, if required by your usage
+* Credentials for the configured AI provider
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/Midhat-hub/catchup.git
+cd catchup
+```
+
+### 2. Set Up the Backend
+
+Open a terminal in the project directory:
+
+```bash
+cd backend
+python -m venv .venv
+```
+
+Activate the virtual environment.
+
+**Windows PowerShell:**
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
 ```
 
-Create `.env` from `.env.example` if needed, then review the PostgreSQL settings. The defaults use `localhost:5433`; `DATABASE_URL` can override the individual `POSTGRES_*` settings. A GitHub token is optional for public repositories, but a read-only token in `GITHUB_TOKEN` provides a higher API rate limit. Keep `.env` private.
+**macOS/Linux:**
 
-Start PostgreSQL with pgvector and initialize or apply the schema:
-
-```powershell
-docker compose up -d
-python -m backend.app.db
+```bash
+source .venv/bin/activate
 ```
 
-The schema initialization creates the seven existing tables and applies the additive `repos.mapped_commit_sha` and `repos.mapping_error` columns used by Step 3. Check the service with `docker compose ps` and `http://localhost:8000/health` after starting the API.
+Install the backend dependencies using the dependency file provided in the backend directory.
 
-## Run The API
+For a project using `requirements.txt`:
 
-```powershell
-uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+```bash
+pip install -r requirements.txt
 ```
 
-Interactive API documentation is available at [http://localhost:8000/docs](http://localhost:8000/docs).
+Configure the required environment variables using the names expected by the backend configuration. These will typically include database connection details and the credentials required by the enabled GitHub and AI integrations.
 
-Map the default branch of a public JavaScript repository:
+Start the FastAPI application using the entry point configured in the project. If the application is exposed through `app.main`, the command is:
 
-```powershell
-Invoke-RestMethod -Method Post `
-	-Uri http://localhost:8000/api/repos/map `
-	-ContentType "application/json" `
-	-Body '{"repository":"Midhat-hub/bookstore-api"}'
+```bash
+uvicorn app.main:app --reload
 ```
 
-The response includes the pinned commit SHA, files examined and parsed, chunk/embedding/reference/test-link counts, duration, skipped-file details, and whether this revision was already mapped. Private repositories are refused. Invalid identifiers, unsupported primary languages, missing repositories, GitHub rate limits, parse errors, and model failures return distinct HTTP errors. A failed map is recorded as `failed`; previous chunks remain in place unless a replacement mapping succeeds atomically.
+The backend will typically be available at:
 
-Read the persisted status and counts without calling GitHub:
-
-```powershell
-Invoke-RestMethod -Uri http://localhost:8000/api/repos/Midhat-hub/bookstore-api/mapping
+```text
+http://localhost:8000
 ```
 
-Explain a push between two commits (the repository must be mapped at the `before_commit` SHA):
+FastAPI's interactive API documentation is available at:
 
-```powershell
-Invoke-RestMethod -Method Post `
-	-Uri http://localhost:8000/api/pushes/explain `
-	-ContentType "application/json" `
-	-Body '{"repo":"Midhat-hub/bookstore-api","before_commit":"<before-sha>","after_commit":"<after-sha>","use_extra_evidence":true}'
+```text
+http://localhost:8000/docs
 ```
 
-Set `use_extra_evidence` to `false` to omit callers, test links, similar code, and rule-based flags. Comment/whitespace-only JavaScript changes return HTTP 204 without calling Gemini or creating an explanation. A successful result is saved in the existing `pushes` and `explanations` tables with its evidence, token counts, duration, model, and extra-evidence setting. Completed push explanations are returned from storage on repeat requests.
+### 3. Set Up the Frontend
 
-Gemini uses `GEMINI_API_KEY` from `.env` and defaults to `gemini-3.5-flash-lite`; `GEMINI_MODEL` can override the model. The key is sent in an HTTP header and is never logged. Calls request JSON structured output, retry transient errors with bounded exponential backoff, and cache responses in memory. Risk flags are computed locally, and generated file/function references are filtered against mapped repository evidence.
+Open a second terminal:
 
-## Run The Frontend
-
-Keep the FastAPI server running in one terminal. In a second PowerShell terminal:
-
-```powershell
+```bash
 cd frontend
 npm install
-npm run dev -- --host 127.0.0.1
 ```
 
-Open [http://127.0.0.1:5173](http://127.0.0.1:5173). Vite proxies `/api` and `/health` to FastAPI at `127.0.0.1:8000`; the frontend never reads `.env` or receives API keys. Add a public `owner/name` repository to map it, then choose **Explain a push** and enter the before/after commit SHAs. Saved pushes appear newest first with their persisted explanation and evidence. `GET /api/repos` and `GET /api/repos/{owner}/{repo}/pushes` read existing repository, push, explanation, and evidence records; neither route changes database contents.
+Configure the frontend API base URL using the environment variable supported by the project. For local development, point it to the local FastAPI server.
 
-## Parsing And Embeddings
+Start the development server:
 
-Tree-sitter with the JavaScript grammar extracts function declarations, named function expressions, identifier-assigned arrows, async functions, class methods, Express-style route callbacks, ES module imports, CommonJS `require` bindings, identifiable calls, and file-level code outside recognized functions. Nested functions get their own chunks while retaining their original enclosing function chunk. Each stored chunk keeps its repository-relative path, source text, kind, and one-based start/end lines.
-
-The local model is `BAAI/bge-small-en-v1.5` through FastEmbed. A real local inference produced a non-zero vector of **384 dimensions**, matching `vector(384)` in PostgreSQL. The first mapping downloads the model from Hugging Face; the current model cache is about **65 MiB**. It runs on CPU; allow roughly **0.5-1 GiB of RAM** while mapping. Tests inject a fake model and do not initialize, download, or contact the model service.
-
-Files with `.js`, `.jsx`, `.cjs`, and `.mjs` extensions are eligible. `node_modules`, generated/build directories, minified files, non-UTF-8/binary files, and files larger than 1 MB are skipped. A truncated GitHub file tree or a JavaScript parse failure fails the mapping instead of marking an incomplete result ready.
-
-## Static Analysis Limits
-
-- Call edges are resolved only for unique same-file targets or targets connected through supported relative imports. Package aliases, barrel re-exports, dynamic imports, computed properties, and many CommonJS export patterns are not resolved.
-- Callback and dynamic calls can be missed. In cases where a target remains ambiguous, the mapper skips the edge; name-based static analysis can still associate a call with the wrong same-named symbol in some code shapes.
-- Test links use statically resolved calls and imports. They indicate likely references, not actual runtime test coverage or assertions.
-- The parser targets JavaScript/JSX, not TypeScript/TSX or framework-specific syntax outside the JavaScript grammar. Unsupported syntax causes a failed mapping with a file and line error.
-- Mapping is a full snapshot at one commit, not incremental. Re-mapping the same ready SHA is a no-op; a new SHA replaces chunks and relationships in one database transaction.
-- Push comparison analyzes changed files from both commit trees. Rename metadata from GitHub's compare API is not preserved by the current Step 1 `PushFile` shape, and generated output cannot infer runtime behavior.
-- Token counts used to select evidence are estimated at roughly four characters per token; Gemini's returned usage metadata is recorded for actual provider calls. Large pushes are split by file and combined afterward.
-
-## Tests
-
-Run the full suite with the project virtual environment:
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest -v
+```bash
+npm run dev
 ```
 
-Unit tests use mocked GitHub and database boundaries and do not require credentials or a model download. Tests marked `integration` require the configured PostgreSQL/pgvector service; tests also marked `github` call the public GitHub API.
+Open the local URL printed in your terminal, typically:
 
-The live Gemini check is opt-in and makes one request:
-
-```powershell
-$env:RUN_LIVE_GEMINI_TEST = "1"
-.\.venv\Scripts\python.exe -m pytest -v backend/tests/test_gemini_live.py
-Remove-Item Env:RUN_LIVE_GEMINI_TEST
+```text
+http://localhost:5173
 ```
+
+### 4. Configure the Database and Integrations
+
+Before using the complete application, ensure that:
+
+* PostgreSQL is reachable.
+* The required database schema and extensions are available.
+* The GitHub integration has the necessary access.
+* The AI provider credentials are configured.
+* The frontend points to the correct backend URL.
+* The backend's background polling and worker processes are running.
+
+**Note:** Check the repository's dependency files, configuration, and environment-variable references for the exact setup required by the current implementation.
+
+---
+
+## 🔐 Configuration and Security
+
+Catchup integrates with external services, so credentials and configuration should be handled carefully.
+
+* Store API keys and database credentials in environment variables.
+* Never commit `.env` files containing secrets.
+* Keep production credentials separate from local development credentials.
+* Use the minimum GitHub permissions required for your workflow.
+* Avoid logging API keys, database passwords, or other sensitive values.
+* Restrict access to the database and production services appropriately.
+
+Example `.env` files should contain placeholders rather than real credentials.
+
+```env
+# Illustrative placeholders — use the variable names
+# expected by the current backend configuration.
+
+DATABASE_URL=your_postgresql_connection_string
+GITHUB_TOKEN=your_github_token
+AI_API_KEY=your_ai_provider_api_key
+```
+
+The actual variable names depend on the application's configuration and the selected AI provider.
+
+---
+
+## 🧪 Development and Testing
+
+The project includes testing and build-validation workflows for supported components.
+
+For the frontend, run the available test suite:
+
+```bash
+npm test
+```
+
+Build the frontend for production:
+
+```bash
+npm run build
+```
+
+Run the backend tests using the project's configured test framework. For a pytest-based setup:
+
+```bash
+pytest -v
+```
+
+These commands assume the relevant scripts, dependencies, and test configuration are present in the checked-out version.
+
+---
+
+## 🗺️ Roadmap
+
+Potential improvements for future versions include:
+
+* [ ] Email notifications when new commit explanations are ready
+* [ ] Faster initial application loading
+* [ ] A dedicated Home page with project documentation and onboarding
+* [ ] More detailed code-change summaries
+* [ ] Improved repository navigation and filtering
+* [ ] Additional controls for notification preferences
+* [ ] Expanded testing and observability for background processing
+
+*Roadmap items are planned improvements, not claims about currently available functionality.*
+
+---
+
+## 🧠 What I Learned Building Catchup
+
+Catchup has been an opportunity to explore the engineering challenges involved in building and deploying a full-stack application.
+
+Some of the key areas include:
+
+* Integrating a frontend with a production backend API.
+* Working with the GitHub API and repository commit history.
+* Designing background polling and job-processing workflows.
+* Indexing source code and generating embeddings.
+* Persisting application state using PostgreSQL and pgvector.
+* Integrating AI into a practical developer workflow.
+* Debugging deployment, API routing, CORS, and database issues.
+* Testing the application across local and production environments.
+
+The project combines backend engineering, data persistence, AI integration, and deployment into one practical system.
+
+---
+
+## 👩‍💻 Author
+
+**Midhat**
+
+B.Tech in Data Science | Full-Stack Development | Backend Engineering | AI Applications
+
+* **GitHub:** [@Midhat-hub](https://github.com/Midhat-hub)
+* **Project:** [Catchup Repository](https://github.com/Midhat-hub/catchup)
+* **Live Demo:** [Try Catchup](https://catchup-flax-three.vercel.app/)
+
+---
+
+<div align="center">
+
+### Follow the changes. Understand the code. Catch up faster. ⚡
+
+**Built to make understanding codebase changes easier.**
+
+</div>
