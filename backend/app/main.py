@@ -2,7 +2,7 @@
 
 Provides application lifecycle management and robust health checks.
 """
-
+import sys
 from contextlib import asynccontextmanager
 import asyncio
 import logging
@@ -88,6 +88,7 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+print("PYTHON VERSION:", sys.version, flush=True)
 
 
 @app.get("/api/repos", response_model=list[RepositoryListItem], tags=["Repositories"])
