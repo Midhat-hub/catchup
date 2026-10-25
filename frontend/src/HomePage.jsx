@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import "./landing.css";
 import { getRepositoriesOnce } from "./api.js";
 

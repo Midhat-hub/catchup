@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { appPageForPath, isAppPath, normalizeAppPath } from "./navigation.js";
 
 const HomePage = lazy(() => import("./HomePage.jsx"));

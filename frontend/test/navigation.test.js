@@ -27,6 +27,9 @@ test("Home and Workspace navigation retain the mounted workspace state", async (
   ]);
 
   assert.match(home, /aria-label="Main navigation"/);
+  assert.match(app, /^import React,/);
+  assert.match(home, /^import React,/);
+  assert.match(workspace, /^import React,/);
   assert.match(home, /aria-current="page"[\s\S]*?⌂\s*<span>Home<\/span>/);
   assert.match(home, /href="\/workspace"/);
   assert.match(home, /Automatic push detection/);
