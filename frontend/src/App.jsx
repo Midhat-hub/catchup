@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import "./landing.css";
+import { applyActivityRefresh, startActivityRefresh } from "./activityRefresh.js";
 import {
   explainPush,
   getMappingStatus,
@@ -401,6 +402,31 @@ function Workspace() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [mappingResult, setMappingResult] = useState(null);
+  const activityRequestsRef = useRef(new Map());
+
+  const loadRepositoryActivity = useCallback((repository) => {
+    const inFlight = activityRequestsRef.current.get(repository);
+    if (inFlight) return inFlight;
+
+    const request = Promise.all([
+      getMappingStatus(repository),
+      getPushes(repository),
+    ]);
+    activityRequestsRef.current.set(repository, request);
+    request.then(
+      () => {
+        if (activityRequestsRef.current.get(repository) === request) {
+          activityRequestsRef.current.delete(repository);
+        }
+      },
+      () => {
+        if (activityRequestsRef.current.get(repository) === request) {
+          activityRequestsRef.current.delete(repository);
+        }
+      },
+    );
+    return request;
+  }, []);
 
   const refreshRepositories = useCallback(
     async (preferred = "") => {
@@ -450,29 +476,21 @@ function Workspace() {
       setSelectedPushId(null);
       return;
     }
-    const [statusResult, pushRows] = await Promise.all([
-      getMappingStatus(repository),
-      getPushes(repository),
-    ]);
+    const [statusResult, pushRows] = await loadRepositoryActivity(repository);
     setMapping(statusResult);
     setPushes(pushRows);
     setSelectedPushId((current) =>
-      pushRows.some((item) => item.push_id === current)
-        ? current
-        : (pushRows[0]?.push_id ?? null),
+      applyActivityRefresh(pushRows, current).selectedPushId,
     );
     setBeforeCommit(statusResult.mapped_commit_sha || "");
-  }, []);
+  }, [loadRepositoryActivity]);
 
   useEffect(() => {
     if (!selectedRepository) return undefined;
     let alive = true;
     setMapping(null);
     setPushes([]);
-    Promise.all([
-      getMappingStatus(selectedRepository),
-      getPushes(selectedRepository),
-    ])
+    loadRepositoryActivity(selectedRepository)
       .then(([statusResult, pushRows]) => {
         if (!alive) return;
         setMapping(statusResult);
@@ -486,7 +504,39 @@ function Workspace() {
     return () => {
       alive = false;
     };
-  }, [selectedRepository]);
+  }, [loadRepositoryActivity, selectedRepository]);
+
+  useEffect(() => {
+    if (!selectedRepository) return undefined;
+    let active = true;
+    const stopRefreshing = startActivityRefresh({
+      repository: selectedRepository,
+      windowTarget: window,
+      documentTarget: document,
+      refresh: async (repository) => {
+        try {
+          const [statusResult, pushRows] = await loadRepositoryActivity(repository);
+          if (!active) return;
+          setMapping(statusResult);
+          setPushes(pushRows);
+          setSelectedPushId((current) =>
+            applyActivityRefresh(pushRows, current).selectedPushId,
+          );
+        } catch (requestError) {
+          if (active) {
+            console.warn(
+              `Could not refresh activity for ${repository}:`,
+              requestError,
+            );
+          }
+        }
+      },
+    });
+    return () => {
+      active = false;
+      stopRefreshing();
+    };
+  }, [loadRepositoryActivity, selectedRepository]);
 
   const selectedPush =
     pushes.find((item) => item.push_id === selectedPushId) || null;
