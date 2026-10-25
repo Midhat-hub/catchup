@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from threading import RLock
 from typing import Iterable, Protocol, Sequence
 
 logger = logging.getLogger(__name__)
@@ -27,22 +28,25 @@ class EmbeddingModel(Protocol):
 
 
 _model: EmbeddingModel | None = None
+_model_lock = RLock()
 
 
 def _load_model() -> EmbeddingModel:
     """Load the model on first use; FastEmbed downloads it if not cached."""
     global _model
-    if _model is None:
-        try:
-            from fastembed import TextEmbedding
+    with _model_lock:
+        if _model is None:
+            try:
+                from fastembed import TextEmbedding
 
-            logger.info("Loading local embedding model %s", MODEL_NAME)
-            _model = TextEmbedding(model_name=MODEL_NAME)
-        except Exception as exc:
-            raise EmbeddingError(
-                f"Could not load {MODEL_NAME}. Check network access for the initial model download "
-                "and available disk space, then retry."
-            ) from exc
+                logger.info("Loading local embedding model %s", MODEL_NAME)
+                _model = TextEmbedding(model_name=MODEL_NAME)
+                logger.info("Loaded local embedding model %s", MODEL_NAME)
+            except Exception as exc:
+                raise EmbeddingError(
+                    f"Could not load {MODEL_NAME}. Check network access for the initial model download "
+                    "and available disk space, then retry."
+                ) from exc
     return _model
 
 
@@ -62,7 +66,10 @@ def embed_texts(
 
     active_model = model if model is not None else _load_model()
     try:
-        vectors = [list(map(float, vector)) for vector in active_model.embed(texts, batch_size=batch_size)]
+        # FastEmbed's ONNX-backed model may be called by both request and worker threads.
+        # Serialize inference until the backend's thread-safety is established.
+        with _model_lock:
+            vectors = [list(map(float, vector)) for vector in active_model.embed(texts, batch_size=batch_size)]
     except Exception as exc:
         raise EmbeddingError(f"Local embedding generation failed using {MODEL_NAME}.") from exc
 

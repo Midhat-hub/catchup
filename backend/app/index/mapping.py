@@ -197,12 +197,14 @@ def map_repository(
     repo_id: int | None = None
     metadata: RepoMetadata | None = None
     try:
+        logger.info("Mapping %s: fetching repository metadata", requested_name)
         metadata = client.get_repo(owner, repo_name)
         if metadata.language and metadata.language.lower() != "javascript":
             raise UnsupportedRepositoryError(
                 f"Repository primary language is {metadata.language}; Catchup currently maps JavaScript repositories only."
             )
         if revision is None:
+            logger.info("Mapping %s: resolving default branch commit", requested_name)
             latest = client.get_latest_commits(owner, repo_name, branch=metadata.default_branch, limit=1)
             if not latest:
                 raise UnsupportedRepositoryError("The repository's default branch has no commit to map.")
@@ -218,6 +220,7 @@ def map_repository(
                 raise RepositoryMappingError("The repository mapping disappeared while reading its status.")
             return _mapping_statistics_from_status(metadata.full_name, commit_sha, status, started)
 
+        logger.info("Mapping %s@%s: fetching repository tree", metadata.full_name, commit_sha[:12])
         tree = client.list_files(owner, repo_name, tree_sha=commit_sha)
         parsed_files: list[ParsedJavaScriptFile] = []
         chunks: list[CodeChunk] = []
@@ -239,6 +242,7 @@ def map_repository(
                 continue
 
             source_files_examined += 1
+            logger.debug("Mapping %s@%s: fetching blob %s", metadata.full_name, commit_sha[:12], item.path)
             try:
                 content = client.get_blob_content(owner, repo_name, item.sha)
             except GitHubError as exc:
@@ -258,6 +262,7 @@ def map_repository(
                 skipped_count = _record_skipped(skipped, item.path, "non_utf8_file", skipped_count)
                 continue
 
+            logger.debug("Mapping %s@%s: parsing %s", metadata.full_name, commit_sha[:12], item.path)
             parsed = parse_javascript(source_text, item.path)
             parsed_files.append(parsed)
             files_parsed += 1
@@ -269,6 +274,10 @@ def map_repository(
                     chunks.append(chunk)
                     file_chunks.append(chunk)
             if file_chunks:
+                logger.info(
+                    "Mapping %s@%s: embedding %s chunks from %s",
+                    metadata.full_name, commit_sha[:12], len(file_chunks), item.path,
+                )
                 file_embeddings = embed([chunk.text for chunk in file_chunks])
                 if len(file_embeddings) != len(file_chunks) or any(
                     len(vector) != 384 for vector in file_embeddings
@@ -282,7 +291,9 @@ def map_repository(
         if not chunks:
             raise UnsupportedRepositoryError("The repository contains JavaScript files but no parseable code chunks.")
 
+        logger.info("Mapping %s@%s: building relationships for %s chunks", metadata.full_name, commit_sha[:12], len(chunks))
         references, test_links = _build_relationships(parsed_files, chunks)
+        logger.info("Mapping %s@%s: persisting %s chunks and vectors", metadata.full_name, commit_sha[:12], len(chunks))
         stored_chunks, stored_references, stored_test_links = persist_mapping(
             repo_id,
             commit_sha,
@@ -314,7 +325,7 @@ def map_repository(
             )
         except Exception:
             logger.exception("Could not persist failed mapping status for %s", requested_name)
-        logger.warning("Repository mapping failed for %s: %s", requested_name, exc)
+        logger.exception("Repository mapping failed for %s: %s", requested_name, exc)
         raise
     finally:
         if owns_client:

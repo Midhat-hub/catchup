@@ -43,9 +43,11 @@ def mark_mapping_failed(repository: str, error: str, repo_id: int | None = None)
         with conn.cursor() as cursor:
             if repo_id is not None:
                 cursor.execute(
-                   """UPDATE repos SET status = 'ready', mapped_commit_sha = %s, 
-    last_explained_commit = COALESCE(last_explained_commit, %s),
-    mapping_error = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = %s""",
+                    """UPDATE repos SET
+                           status = CASE WHEN mapped_commit_sha IS NULL THEN 'failed' ELSE 'ready' END,
+                           mapping_error = %s,
+                           updated_at = CURRENT_TIMESTAMP
+                       WHERE id = %s""",
                     (safe_error, repo_id),
                 )
             else:

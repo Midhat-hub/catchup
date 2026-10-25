@@ -1,4 +1,8 @@
-"""Offline unit tests for local embedding batching and dimensions."""
+"""Offline unit tests plus an opt-in subprocess check for the real model."""
+
+import os
+import subprocess
+import sys
 
 import pytest
 
@@ -53,3 +57,28 @@ def test_embedding_rejects_wrong_dimension():
 def test_embedding_failure_is_reported():
     with pytest.raises(EmbeddingError, match="generation failed"):
         embed_texts(["text"], model=FakeEmbeddingModel(fail=True))
+
+
+@pytest.mark.skipif(
+    os.environ.get("CATCHUP_TEST_REAL_EMBEDDINGS") != "1",
+    reason="Set CATCHUP_TEST_REAL_EMBEDDINGS=1 to run/download the real FastEmbed model.",
+)
+def test_real_fastembed_model_in_isolated_process():
+    """Keep native crashes isolated from pytest and report their process exit code."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from backend.app.index.embeddings import embed_texts; "
+            "v = embed_texts(['Catchup native embedding smoke test']); "
+            "assert len(v) == 1 and len(v[0]) == 384",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=300,
+        check=False,
+    )
+    assert result.returncode == 0, (
+        f"Real FastEmbed subprocess exited {result.returncode}.\n"
+        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    )
