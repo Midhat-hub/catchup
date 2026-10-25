@@ -1,1 +1,1 @@
-"""Delivery module (Step 5: checker, worker, email)."""
+"""Background delivery module for polling and push explanation jobs."""

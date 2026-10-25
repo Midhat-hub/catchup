@@ -7,7 +7,7 @@
 
 ## 1. What we are building
 
-A local web app. You add a public GitHub repository by pasting its name. The app reads and maps the repo. After that, **every time someone pushes to the main branch, the app explains the change in plain language**, says what else it might affect, shows it on a page and emails it.
+A local web app. You add a public GitHub repository by pasting its name. The app reads and maps the repo. After that, **every time someone pushes to the main branch, the app explains the change in plain language**, says what else it might affect, and shows it on a page.
 
 **Why:** a lot of code is now written quickly, often with AI tools, and the people who have to work with it did not write it and cannot keep up. Catchup helps them catch up.
 
@@ -35,7 +35,6 @@ Runs on my own computer. No login. Pages:
    - things to know first (short explanations of terms for beginners),
    - flags such as "touches the database", "changes an API route", "many files at once", "no tests cover this",
    - an **evidence panel**: which pieces of code were retrieved, their similarity scores, and what went into the prompt.
-5. An **email** with the same explanation, sent to one address set in `.env`.
 
 The website is simple React. It only needs to work and be readable.
 
@@ -54,7 +53,7 @@ The website is simple React. It only needs to work and be readable.
 4. It gathers evidence: callers, tests, similar code, and flags.
 5. It fits the evidence into a size limit (tokens) and asks Gemini for a structured explanation.
 6. A check removes any file or function name that does not exist.
-7. The result is saved, shown on the website and emailed.
+7. The result is saved and shown on the website.
 8. The changed files are re-mapped, and the repo's "last explained commit" is updated.
 
 ## 4. Decisions (locked)
@@ -71,7 +70,6 @@ The website is simple React. It only needs to work and be readable.
 | Embeddings | One small local model (free, no rate limits) |
 | Explanation model | Gemini Flash or Flash-Lite, free tier, behind one wrapper function |
 | Job queue | A `jobs` table in Postgres |
-| Email | One address from `.env`, free tier of an email service or Gmail |
 | Cost | Zero. Free tools only |
 | Hosting | Not now. Docker plus environment variables |
 | Test repo | Your distributed cache project (Node), which must be public |
@@ -133,8 +131,8 @@ Estimates are focused working days.
 
 *Done when:* `explain_push` returns a valid explanation for 5 real pushes.
 
-**Step 5. Trigger and delivery (2 days).** The polling checker creates jobs for new pushes, the worker runs `explain_push`, the result is saved, the email is sent, and the changed files are re-mapped.
-*Done when:* pushing to the test repo produces an email and a saved explanation within a few minutes.
+**Step 5. Trigger and processing (2 days).** The polling checker creates jobs for new pushes, the worker runs `explain_push`, the result is saved, and the changed files are re-mapped.
+*Done when:* pushing to the test repo produces a saved explanation within a few minutes.
 
 **Step 6. Simple UI (3 to 4 days).** React pages: add repo, repo status, list of pushes, explanation page with the evidence panel.
 *Done when:* you can use the whole flow from the browser.
@@ -221,7 +219,7 @@ catchup/
       parsing/         Step 3
       index/           Step 3
       explain/         Step 4
-      delivery/        Step 5: checker, worker, email
+      delivery/        Step 5: checker and worker
     tests/
   frontend/            Step 6
   test/

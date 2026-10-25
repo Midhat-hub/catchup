@@ -120,25 +120,3 @@ CREATE TABLE IF NOT EXISTS explanations (
 );
 
 CREATE INDEX IF NOT EXISTS idx_explanations_push_id ON explanations(push_id);
-
--- 9. Durable optional email outbox; one notification at most per completed job.
-CREATE TABLE IF NOT EXISTS push_email_notifications (
-    id SERIAL PRIMARY KEY,
-    job_id INTEGER NOT NULL UNIQUE REFERENCES jobs(id) ON DELETE CASCADE,
-    repository VARCHAR(255) NOT NULL,
-    branch VARCHAR(255),
-    before_commit VARCHAR(64) NOT NULL,
-    after_commit VARCHAR(64) NOT NULL,
-    summary TEXT NOT NULL,
-    status VARCHAR(20) NOT NULL DEFAULT 'pending'
-        CHECK (status IN ('pending', 'running', 'sent', 'failed')),
-    attempts INTEGER NOT NULL DEFAULT 0,
-    error TEXT,
-    provider_message_id VARCHAR(255),
-    next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_push_email_notifications_pending
-    ON push_email_notifications(status, next_attempt_at, created_at);

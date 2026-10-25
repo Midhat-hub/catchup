@@ -384,21 +384,6 @@ export default function LandingPage({
               </div>
             </section>
 
-            <section className="landing-email-callout">
-              <div className="landing-email-icon">✉</div>
-              <div>
-                <p className="landing-email-eyebrow">STAY IN THE LOOP</p>
-                <h2>Optional email summaries.</h2>
-                <p>
-                  Configure the backend with an email provider to receive a
-                  notification after a push explanation is saved.
-                </p>
-              </div>
-              <a href="/workspace" className="landing-email-link">
-                Explore Catchup <span>→</span>
-              </a>
-            </section>
-
             <section className="landing-final-cta">
               <div className="landing-final-stamp">C</div>
               <p className="landing-kicker">

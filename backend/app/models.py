@@ -117,7 +117,7 @@ class ExplanationMeta(BaseModel):
 
 
 class Explanation(BaseModel):
-    """Final structured push explanation presented on the UI and sent via email."""
+    """Final structured push explanation presented in the UI."""
 
     model_config = ConfigDict(extra="forbid")
 

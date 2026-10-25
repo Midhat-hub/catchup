@@ -265,35 +265,4 @@ def complete_job(job: JobRecord) -> bool:
                         "it is no longer running."
                     )
 
-                try:
-                    from backend.app.delivery.email_notifications import notifications_configured
-
-                    if notifications_configured():
-                        with conn.transaction():
-                            cur.execute(
-                                """
-                                INSERT INTO push_email_notifications (
-                                    job_id, repository, branch,
-                                    before_commit, after_commit, summary
-                                )
-                                SELECT j.id, j.payload->>'repository', j.payload->>'branch',
-                                       j.payload->>'before_commit', j.payload->>'after_commit',
-                                       e.content->>'one_line'
-                                FROM jobs j
-                                JOIN pushes p
-                                  ON p.repo_id = (j.payload->>'repo_id')::integer
-                                 AND p.before_commit = j.payload->>'before_commit'
-                                 AND p.after_commit = j.payload->>'after_commit'
-                                JOIN explanations e ON e.push_id = p.id
-                                WHERE j.id = %s AND j.status = 'completed'
-                                ON CONFLICT (job_id) DO NOTHING
-                                """,
-                                (job.id,),
-                            )
-                except Exception:
-                    logger.exception(
-                        "Could not queue email notification for completed push job id=%s",
-                        job.id,
-                    )
-
     return True

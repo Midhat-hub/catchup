@@ -160,32 +160,6 @@ def test_completion_advances_cursor_and_marks_job_in_transaction(monkeypatch):
     assert any("status = 'completed'" in sql for sql, _ in connection.statements)
 
 
-def test_completion_queues_one_notification_only_when_configured(monkeypatch):
-    connection = FakeConnection()
-    monkeypatch.setattr(queue, "get_db_connection", lambda: connection_context(connection))
-    monkeypatch.setattr(
-        "backend.app.delivery.email_notifications.notifications_configured",
-        lambda: True,
-    )
-    job = JobRecord(
-        21,
-        {
-            "type": "explain_push",
-            "repo_id": 7,
-            "repository": "owner/repo",
-            "branch": "main",
-            "before_commit": "a" * 40,
-            "after_commit": "b" * 40,
-        },
-        1,
-    )
-
-    assert queue.complete_job(job) is True
-    outbox_sql = next(sql for sql, _ in connection.statements if "INSERT INTO push_email_notifications" in sql)
-    assert "JOIN explanations" in outbox_sql
-    assert "ON CONFLICT (job_id) DO NOTHING" in outbox_sql
-
-
 def test_baseline_initialization_only_fills_missing_cursor(monkeypatch):
     connection = FakeConnection()
     monkeypatch.setattr(queue, "get_db_connection", lambda: connection_context(connection))
